@@ -330,33 +330,57 @@ cat /etc/passwd | head -46 | tail -n 19 | cut -d: -f3 | rev | cut -c 1 | rev
 ### 03-b-6700
 Отпечатайте правата (permissions) и имената на всички файлове, до които имате
 read достъп, намиращи се в директорията /tmp. (hint: 'man find', вижте -readable)
-
+````shell
+find /tmp -type f -readable -printf "%M\t%p" # %M placeholder for  file's permissions, %p placeholder for file path
+````
 
 ### 03-b-6900
 Намерете имената на 10-те файла във вашата home директория, чието съдържание е
 редактирано най-скоро. На първо място трябва да бъде най-скоро редактираният
 файл. Намерете 10-те най-скоро достъпени файлове. (hint: Unix time)
+````shell
+find . -maxdepth 1 -type f -printf '%T@ %p\n' | sort -n | tail -n 10 # %T@ last modification time
+# or
+ls -ltp | grep -v / | head -n 10
+````
 
 ### 03-b-7000
 да приемем, че файловете, които съдържат C код, завършват на `.c` или `.h`.
 Колко на брой са те в директорията `/usr/include`?
 Колко реда C код има в тези файлове?
+````shell
+# to fet the files
+find /usr/include/ -type f -name '*.[c\|h]'
+# or 
+ls -R /usr/include/ | grep -E '\.(c|h)$'
+# count 
+find /usr/include/ -type f -name '*.[c\|h]' | wc -l
+# c code count 
+find /usr/include/ -type f \( -name "*.c" -o -name "*.h" \) -exec wc -l {} + | awk '{total += $1} END {print total}'
+````
 
 ### 03-b-7500
 Даден ви е ASCII текстов файл - /etc/services. Отпечатайте хистограма на 10-те най-често срещани думи.
 Дума наричаме непразна последователност от букви. Не правим разлика между главни и малки букви.
 Хистограма наричаме поредица от редове, всеки от които има вида:
 <брой срещания> <какво се среща толкова пъти>
+````shell
+cat /etc/services | tr -cs '[:alnum:]' '[\n*]' | tr 'A-Z' 'a-z' | sort | uniq -c | sort -nr | head -10
 
+````
 ### 03-b-8000
 Вземете факултетните номера на студентите (описани във файла
 <РЕПО>/exercises/data/mypasswd.txt) от СИ и ги запишете във файл si.txt сортирани.
+
 
 Студент е част от СИ, ако home директорията на този потребител (според
 <РЕПО>/exercises/data/mypasswd.txt) се намира в /home/SI директорията.
 
 ### 03-b-8500
 За всяка група от /etc/group изпишете "Hello, <група>", като ако това е вашата група, напишете "Hello, <група> - I am here!".
+````shell
+awk -F: -v cg="$(id -gn)" '{print ($1 == cg) ? "Hello, " $1 " - I am here!" : "Hello, " $1}' /etc/group
+````
 
 ### 03-b-8600
 Shell Script-овете са файлове, които по конвенция имат разширение .sh. Всеки
@@ -366,6 +390,9 @@ Shell Script-овете са файлове, които по конвенция 
 
 Намерете всички .sh файлове в директорията `/usr` и нейните поддиректории, и
 проверете кой е най-често използваният интерпретатор.
+````shell
+find /usr -type f -name "*.sh" | xargs -I {} grep -m 1 '^#!' {} | sort | uniq -c | sort -nr | head -1 # -m stop after 1 select
+````
 
 ### 03-b-8700
 1. Изведете GID-овете на 5-те най-големи групи спрямо броя потребители, за които
@@ -374,12 +401,19 @@ Shell Script-овете са файлове, които по конвенция 
 2. (*) Изведете имената на съответните групи.
 
 Hint: /etc/passwd
+````shell
+awk -F: '{print $4}' /etc/passwd | sort | uniq -c | sort -nr -k 1 | head -n 5 | awk '{print $2}'
+````
 
 ### 03-b-9000
 Направете файл eternity. Намерете всички файлове, намиращи се във вашата home
 директория и нейните поддиректории, които са били модифицирани в последните
 15мин (по възможност изключете .).  Запишете във eternity името (път) на
 файла и времето (unix time) на последната промяна.
+````shell
+find . -mindepth 2 -type f -mmin 15 -printf '%p %T@\n' > eternity
+
+````
 
 ### 03-b-9050
 Копирайте файл <РЕПО>/exercises/data/population.csv във вашата home директория.
@@ -405,30 +439,58 @@ curl -o songs.tar.gz "http://fangorn.uni-sofia.bg/misc/songs.tar.gz"
 
 ### 03-b-9101
 Да се разархивира архивът songs.tar.gz в директория songs във вашата home директория.
+````shell
+mkdir songs
+tar -xvf songs.tar.gz --directory=songs
+````
 
 ### 03-b-9102
 Да се изведат само имената на песните.
+````shell
+find songss -type f -name "*.ogg" | awk -F"- " '{print $2}' | awk -F" (" '{print $1}'
+````
 
 ### 03-b-9103
 Имената на песните да се направят с малки букви, да се заменят спейсовете с
 долни черти и да се сортират.
+````shell
+find songss -type f -name "*.ogg" | awk -F"- " '{print $2}' | awk -F" (" '{print $1}' | tr A-Z a-z | tr " " "_" | sort
+````
 
 ### 03-b-9104
 Да се изведат всички албуми, сортирани по година.
+````shell
+find songs -type f -name *.ogg | awk -F '(' '{print $2}' | awk -F ')' '{print $1}' | sort -n -t',' -k 2 | awk -F"," '{print $1}'
+# or 
+find songs -type f -name *.ogg | awk -F '(' '{print $2}' | awk -F ')' '{print $1}' | sort -n -t',' -k 2 | cut -d, -f 1
+````
 
 ### 03-b-9105
 Да се преброят/изведат само песните на Beatles и Pink.
+````shell
+# Pink != Pink Floyd
+# count 
+find songs -type f -name *.ogg | grep "Beatles\|Pink" | grep -v "Floyd" | wc -l
+# song names
+find songs -type f -name *.ogg | grep "Beatles\|Pink" | grep -v "Floyd" | awk -F"- " '{print $2}' | awk -F"(" '{print $1}'
+````
 
 ### 03-b-9106
 Да се направят директории с имената на уникалните групи. За улеснение, имената
 от две думи да се напишат слято:
 
 Beatles, PinkFloyd, Madness
+````shell
+# working in home this will create the directories in songs dir
+find songs -type f -name *.ogg | awk -F"-" '{print $1}' | sort | uniq | xargs -I {} mkdir {}
+````
+
 
 ### 03-b-9200
 Напишете серия от команди, които извеждат детайли за файловете и директориите в
 текущата директория, които имат същите права за достъп както най-големият файл
 в /etc директорията.
+
 
 ### 03-b-9300
 Дадени са ви 2 списъка с email адреси - първият има 12 валидни адреса, а
