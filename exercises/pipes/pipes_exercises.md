@@ -417,6 +417,9 @@ find . -mindepth 2 -type f -mmin 15 -printf '%p %T@\n' > eternity
 
 ### 03-b-9050
 Копирайте файл <РЕПО>/exercises/data/population.csv във вашата home директория.
+````shell
+/srv/fmi-os
+````
 
 ### 03-b-9051
 Използвайки файл population.csv, намерете колко е общото население на света
