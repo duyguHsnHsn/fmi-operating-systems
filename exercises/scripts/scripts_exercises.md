@@ -2,6 +2,11 @@
 
 ### 05-a-2000
 Сменете вашия prompt с нещо по желание. После върнете оригиналния обратно.
+````shell
+temp=$PS1
+export $PS1=\[\e]0;\u@\h: \w\a\]$
+PS1=$temp
+````
 
 ### 05-a-2100
 Редактирайте вашия .bash_profile файл, 
@@ -10,31 +15,116 @@
 ### 05-a-2200
 Направете си ваш псевдоним (alias) на полезна команда.
 
+````shell
+vim .bashrc
+alias llt='ls -lt'
+````
+
 ### 05-b-2000
 Да се напише shell скрипт, който приканва потребителя да въведе низ (име) и изпечатва "Hello, низ".
+````shell
+#! /usr/bin/bash
+read -p "Enter name: " name
+echo "Hello, " $name
+exit 0
+````
 
 ### 05-b-2800
 Да се напише shell скрипт, който приема точно един параметър и
 проверява дали подаденият му параметър се състои само от букви и цифри.
+````shell
+#! /usr/bin/bash
+if [[ "$#" -ne 1 ]]; then
+  echo "Number of arguments must be exactly one";
+  exit 1
+fi 
+
+echo $1 | awk '/^[a-zA-Z0-9]+$/ {print "Yes"; next} {print "No"}'
+exit 0;
+````
+
 
 ### 05-b-3100
-Да се напише shell скрипт, който приканва потребителя да въведе низ - потребителско име на потребител от системата - след което извежда на стандартния изход колко активни сесии има потребителят в момента.
+Да се напише shell скрипт, който приканва потребителя да въведе низ - потребителско име на потребител от системата 
+- след което извежда на стандартния изход колко активни сесии има потребителят в момента.
+````shell
+#!/usr/bin/bash
+read -p "Enter username: " userName
+echo "User $userName has" $(who | grep "$userName" | wc -l) "active sessions"
+exit 0
+````
 
 ### 05-b-3200
-Да се напише shell скрипт, който приканва потребителя да въведе пълното име на директория и извежда на стандартния изход подходящо съобщение за броя на всички файлове и всички директории в нея.
+Да се напише shell скрипт, който приканва потребителя да въведе пълното име на директория 
+и извежда на стандартния изход подходящо съобщение за броя на всички файлове и всички директории в нея.
+````shell
+#!/usr/bin/bash
+read -p "Enter directory: " dir
+count= "$(find $dir -maxdepth 1 | wc -l)"
+echo "Directory $dir has" ${count} "elements"
+exit 0
+````
 
 ### 05-b-3300
-Да се напише shell скрипт, който чете от стандартния вход имената на 3 файла, обединява редовете на първите два (man paste), подрежда ги по азбучен ред и резултата записва в третия файл.
+Да се напише shell скрипт, който чете от стандартния вход имената на 3 файла,
+обединява редовете на първите два (man paste), подрежда ги по азбучен ред и резултата записва в третия файл.
+````shell
+#!/usr/bin/bash
+
+read -p "First file: " file1
+read -p "Second file: " file2
+read -p "Third file: " file3
+
+if [[ ! -e "${file1}" ]]; then 
+    echo "${file1} does not exist!"
+    exit 1
+fi
+
+if [[ ! -e "${file2}" ]]; then 
+    echo "${file2} does not exist!"
+    exit 1
+fi
+
+paste -d '\n' "${file1}" "${file2}" | sort > "$file3"
+exit 0
+````
 
 ### 05-b-3400
-Да се напише shell скрипт, който чете от стандартния вход име на файл и символен низ, проверява дали низа се съдържа във файла и извежда на стандартния изход кода на завършване на командата с която сте проверили наличието на низа.
+Да се напише shell скрипт, който чете от стандартния вход име на файл и символен низ,
+проверява дали низа се съдържа във файла и извежда на стандартния изход кода на завършване на командата,
+с която сте проверили наличието на низа.
 
 NB! Символният низ може да съдържа интервал (' ') в себе си.
 
-### 05-b-4200
-Имате компилируем (a.k.a няма синтактични грешки) source file на езика C. Напишете shell script, който да покaзва колко е дълбоко най-дълбокото nest-ване (влагане).
-Примерен .c файл:
+````shell
+#!/usr/bin/bash
 
+read -p "File: " filename
+
+if [[ ! -e "$filename" ]]; then
+    echo "${filename} does not exist!"
+    exit 1
+fi
+
+echo -n "String: "
+read -r searchstring
+
+if [[ ! -z "$searchstring" ]]; then
+    echo "The string cannot be empty!"
+    exit 1
+fi
+
+grep -qF "$searchstring" "$filename" # q ->  Quiet; do not write anything to standard output
+
+echo "Exit code: ${?}"
+
+````
+
+### 05-b-4200
+Имате компилируем (a.k.a няма синтактични грешки) source file на езика C.
+Напишете shell script, който да покaзва колко е дълбоко най-дълбокото nest-ване (влагане).
+Примерен .c файл:
+````text
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
@@ -47,6 +137,8 @@ printf("There are more than 1 arguments");
 
 	return 0;
 }
+````
+
 Тук влагането е 2, понеже имаме main блок, а вътре в него if блок.
 
 Примерно извикване на скрипта:
@@ -55,6 +147,40 @@ printf("There are more than 1 arguments");
 
 Изход:
 The deepest nesting is 2 levels
+
+````shell
+#!/usr/bin/bash
+#!/bin/bash
+if [ $# -eq 0 ]; then
+    echo "You should enter a c file!"
+    exit 1
+fi
+
+file="$1"
+
+if [ ! -e "$file" ]; then
+    echo "File not found!"
+    exit 1
+fi
+
+awk '
+BEGIN {
+    depth = 0;
+    max_depth = 0;
+}
+{
+    for (i = 1; i <= length($0); i++) {
+        if (substr($0, i, 1) == "{") { depth++; }
+        if (substr($0, i, 1) == "}") { depth--; }
+        if (depth > max_depth) { max_depth = depth; }
+    }
+}
+END {
+    print "The deepest nesting is", max_depth, "levels";
+}' "$file"
+
+exit 0
+````
 
 ### 05-b-4301
 Напишете shell script, който автоматично да попълва файла указател от предната задача по подадени аргументи: име на файла указател, пълно име на човека (това, което очакваме да е в /etc/passwd) и избран за него nickname.
