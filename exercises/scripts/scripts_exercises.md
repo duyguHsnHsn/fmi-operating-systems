@@ -198,12 +198,63 @@ uncleBen <username на Ben Dover в os-server>
 след което той да може да въведе някой от номерата (или 0 ако не си хареса никого), и само избраният да бъде добавен към указателя.
 
 ### 05-b-4400
-Напишете shell script, който да приема параметър име на директория, от която взимаме файлове, и опционално експлицитно име на директория, в която ще копираме файлове. Скриптът да копира файловете със съдържание, променено преди по-малко от 45 мин, от първата директория във втората директория. Ако втората директория не е подадена по име, нека да получи такова от днешната дата във формат, който ви е удобен. При желание новосъздадената директория да се архивира.
+Напишете shell script, който да приема параметър име на директория, 
+от която взимаме файлове, и опционално експлицитно име на директория,
+в която ще копираме файлове. 
+Скриптът да копира файловете със съдържание, променено преди по-малко от 45 мин,
+от първата директория във втората директория. Ако втората директория не е подадена по име, 
+нека да получи такова от днешната дата във формат, който ви е удобен. При желание новосъздадената директория да се архивира.
+````shell
+#!/bin/bash
 
+if [ "${#}" -lt 1 ]; then
+  echo "Usage: "${0}" SOURCE_DIR [TARGET_DIR]"
+  exit 1
+fi
+
+SOURCE_DIR=$1
+
+if [ -z "${2}" ]; then
+  TARGET_DIR=$(date +"%Y-%m-%d_%H-%M-%S")
+else
+  TARGET_DIR=$2
+fi
+
+if [[ ! -d "${TARGET_DIR}"]]
+mkdir -p "${TARGET_DIR}"
+
+find "${SOURCE_DIR}" -type f -mmin -45 | xargs -I {} cp {} "${TARGET_DIR}"
+
+````
 ### 05-b-4500
-Да се напише shell скрипт, който получава при стартиране като параметър в командния ред идентификатор на потребител. Скриптът периодично (sleep(1)) да проверява дали потребителят е log-нат, и ако да - да прекратява изпълнението си, извеждайки на стандартния изход подходящо съобщение.
+Да се напише shell скрипт, който получава при стартиране като параметър в командния ред идентификатор на потребител. 
+Скриптът периодично (sleep(1)) да проверява дали потребителят е log-нат, и ако да - да прекратява изпълнението си,
+извеждайки на стандартния изход подходящо съобщение.
 
 NB! Можете да тествате по същият начин като в 05-b-4300.txt
+````shell
+#!/bin/bash
+
+if [ ${#} -eq 0 ]; then
+  echo "Usagе: $0 <user_id>"
+  exit 1
+fi
+
+USER_ID="${1}"
+
+while [[ true ]]; do
+    sleep 1
+    if [[ ! "$( who | grep "${1}" | wc -l) " -eq 0 ]]; then 
+        echo "User logged in"
+        break
+    else
+        echo "Checking... "
+    fi
+done
+exit 0
+
+````
+
 
 ### 05-b-4600
 Да се напише shell скрипт, който валидира дали дадено цяло число попада в целочислен интервал.
@@ -229,6 +280,29 @@ $ ./validint.sh asdf - 280; echo $?
 3
 ```
 
+````shell
+#!/bin/bash
+
+if ! [[ "${1}" =~ "^-?[0-9]+$" && "${2}" =~ "^-?[0-9]+$" && "${3}" =~ "^-?[0-9]+$" ]]; then
+  exit 3
+fi
+
+number=$1
+left_bound=$2
+right_bound=$3
+
+if [ $left_bound -gt $right_bound ]; then
+  exit 2
+fi
+
+if [ $number -ge $left_bound ] && [ $number -le $right_bound ]; then
+  exit 0
+else
+  exit 1
+fi
+
+````
+
 ### 05-b-4700
 Да се напише shell скрипт, който форматира големи числа, за да са по-лесни за четене.
 Като пръв аргумент на скрипта се подава цяло число.
@@ -246,11 +320,74 @@ $ ./nicenumber.sh 7632223 ,
 7,632,223
 ```
 
+````shell
+#!/bin/bash
+
+if [ -z "${1}" ]; then
+  echo "Usage: ${0} <number> [delimeter]"
+  exit 1
+fi
+
+NUMBER="$1"
+DELIMITER="${2:- }"
+
+# reverse the number to facilitate insertion of the delimiter every three digits
+REVERSED_NUMBER=$(echo $NUMBER | rev)
+FORMATTED_NUMBER=""
+
+COUNT=0
+for (( i=0; i<${#REVERSED_NUMBER}; i++ )); do
+  DIGIT=${REVERSED_NUMBER:$i:1}
+  FORMATTED_NUMBER="${DIGIT}${FORMATTED_NUMBER}"
+  COUNT=&((${COUNT}+1))
+  if [[ $COUNT -eq 3 && $i -ne ${#REVERSED_NUMBER}-1 ]]; then
+    FORMATTED_NUMBER="${DELIMITER}${FORMATTED_NUMBER}"
+    COUNT=0
+  fi
+done
+
+echo $FORMATTED_NUMBER
+````
+
+
 ### 05-b-4800
 Да се напише shell скрипт, който приема файл и директория. 
-Скриптът проверява в подадената директория и нейните под-директории дали съществува копие на подадения файл и отпечатва имената на намерените копия, ако съществуват такива.
+Скриптът проверява в подадената директория и нейните под-директории дали съществува копие на подадения файл
+и отпечатва имената на намерените копия, ако съществуват такива.
 
 NB! Под 'копие' разбираме файл със същото съдържание.
+
+````shell
+#!/bin/bash
+
+if [ ${#} -ne 2 ]; then
+  echo "Usage: ${0} <file> <directory>"
+  exit 1
+fi
+
+fileToCheck=$1
+directory=$2
+
+if [ ! -f "$fileToCheck" ]; then
+  echo "File $fileToCheck does not exist."
+  exit 2
+fi
+
+if [ ! -d "$directory" ]; then
+  echo "Directory $directory does not exist."
+  exit 3
+fi
+
+for candidate in $(find "$directory" -type f); do
+  if [[ "$fileToCheck" != "$candidate" ]]; then  
+    if cmp -s "$fileToCheck" "$candidate"; then  # -s option returns 0 if the files are identical
+      echo "Copy found: $candidate"
+    fi
+  fi
+done
+
+
+````
 
 ### 05-b-5500
 Да се напише shell script, който генерира HTML таблица съдържаща описание на
@@ -283,8 +420,48 @@ $ cat table.html
   </tr>
 </table>
 ````
+````shell
+#!/bin/bash
+
+echo "<table>"
+echo "  <tr>"
+echo "    <th>Username</th>"
+echo "    <th>Group</th>"
+echo "    <th>Login Shell</th>"
+echo "    <th>GECOS</th>"
+echo "  </tr>"
+
+while read -r line; do
+  username=$(echo $line | cut -d: -f1)
+  userid=$(echo $line | cut -d: -f3)
+  gecos=$(echo $line | cut -d: -f5)
+  login_shell=$(echo $line | cut -d: -f7)
+  
+  # we different logic for finding the grouo
+
+  # if no group is found, use userid as group
+  if [ -z "$group" ]; then
+    group=$userid
+  fi
+
+  echo "  <tr>"
+  echo "    <td>$username</td>"
+  echo "    <td>$group</td>"
+  echo "    <td>$login_shell</td>"
+  echo "    <td>$gecos</td>"
+  echo "  </tr>"
+done < /etc/passwd
+
+echo "</table>"
+
+
+
+````
 ### 05-b-6600
-Да се напише shell скрипт, който получава единствен аргумент директория и изтрива всички повтарящи се (по съдържание) файлове в дадената директория. Когато има няколко еднакви файла, да се остави само този, чието име е лексикографски преди имената на останалите дублирани файлове.
+Да се напише shell скрипт, който получава единствен аргумент директория и изтрива всички повтарящи се (по съдържание)
+файлове в дадената директория.
+Когато има няколко еднакви файла, да се остави само този, чието име е лексикографски преди имената на останалите
+дублирани файлове.
 
 Примери:
 ```text
@@ -297,6 +474,24 @@ $ ls .
 f1 f2 f3 asdf
 # asdf2 е изтрит
 ```
+````shell
+#!/bin/bash
+
+if [ ${#} -ne 1 ]; then
+    echo "Usage: $0 <directory>"
+    exit 1
+fi
+
+directory=$1
+
+if [[ ! -d "$directory" ]]; then
+    echo "Error: '$directory' is not a directory."
+    exit 2
+fi
+
+ # ask about arrays? 
+
+````
 
 ### 05-b-6800
 Да се напише shell скрипт, който получава единствен аргумент директория и отпечатва списък с всички файлове и директории в нея (без скритите).
