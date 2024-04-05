@@ -489,7 +489,8 @@ if [[ ! -d "$directory" ]]; then
     exit 2
 fi
 
- # ask about arrays? 
+# here we can for with sha256sum since files with same content has same hash 
+# we can use the output of the sha256 command to sort the hash of each file, etc. 
 
 ````
 
