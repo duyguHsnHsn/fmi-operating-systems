@@ -317,3 +317,218 @@ done
 
 exit 0
 ````
+
+
+### Зад. 54 2021-SE-01
+Разполагате с машина, на която е инсталиран специализиран софтуер, който ползва два потребителски
+акаунта – oracle и grid . Всеки от потребителите би трябвало да има environment променлива ORACLE_HOME,
+която указва абсолютен път до директория във формат /path/to/dir. В под-директория bin на зададената
+директория би трябвало да има изпълним файл с име adrci . Всеки от двата потребителя има собствена
+директория diag_dest, която е във вида /u01/app/потребител. Когато някой от потребителите изпълни
+неговото копие на командата adrci с параметър exec="show homes" може да получи на STDOUT един
+от следните два изхода:
+- вариант 1: (неуспех): No ADR homes are set
+- вариант 2: (успех):
+
+![img_2.png](img_2.png)
+
+И в двата случая командата приключва с exit code 0 . Ако командата се изпълни успешно, тя връща
+списък с един или повече ADR Homes, които са релативни имена на директории спрямо diag_dest на
+съответният потребител.
+Напишете скрипт, който може да се изпълнява само от някой от тези два акаунта, и извежда на STDOUT размера в мегабайти и абсолютният път на всеки ADR Home.
+
+- Примерен изход:
+
+![img_3.png](img_3.png)
+
+````shell
+#!/bin/bash
+
+# the solution will work only for oracle
+
+if [[ "$(whoami)" != "oracle" ]]; then
+  echo "This script must be run by 'oracle' user."
+  exit 1
+fi
+
+ORACLE_HOME=$(echo $ORACLE_HOME)
+diag_dest="/u01/app/$(whoami)"
+
+output=$(ORACLE_HOME/bin/adrci exec="show homes")
+
+if [[ $output =~ "No ADR homes are set" ]]; then
+  echo "No ADR homes are set"
+  exit 0
+fi
+
+echo "$output" | grep -v 'ADR Homes' | while read -r line; do # -r prevent treating a backslash (\) as an escape char
+  full_path="$diag_dest/$line"
+  size_mb=$(du -sm "$full_path" | cut -f1) # -s summarize, -m megabytes
+  echo "$size_mb $full_path"
+done
+
+exit 0
+````
+
+### Зад. 46 2021-SE-03 
+
+Напишете shell скрипт, който приема два позиционни параметъра – имена на файлове.
+Примерно извикване:
+
+$ ./foo.sh input.bin output.h
+
+Файлът input.bin е двоичен файл с елементи uint16_t числа, създаден на little-endian машина.
+Вашият скрипт трябва да генерира C хедър файл, дефиниращ масив с име arr, който:
+- съдържа всички елементи от входния файл;
+- няма указана големина;
+- не позволява промяна на данните.
+Генерираният хедър файл трябва да:
+- съдържа и uint32_t променлива arrN, която указва големината на масива;
+- бъде валиден и да може да се #include-ва без проблеми от C файлове, очакващи да “виждат”
+arr и arrN.
+
+За да е валиден един входен файл, той трябва да съдържа не повече от 524288 елемента.
+За справка, dump на съдържанието на примерен input.bin:
+00000000: 5555 5655 5955 5a55 6555 6655 6955 6a55 UUVUYUZUeUfUiUjU
+00000010: 9555 9655 9955 9a55 a555 a655 a955 aa55 .U.U.U.U.U.U.U.U
+
+````shell
+#!/bin/bash
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 input.bin output.h"
+    exit 1
+fi
+
+input_file=$1
+output_file=$2
+
+if [ $(stat -c %s "$input_file") -gt $((524288 * 2)) ]; then # 524288 * 2 bites
+    echo "Error: input file is too large."
+    exit 1
+fi
+
+# this is checked with chatgpt; try to find sth better
+# Use xxd to dump the binary data in plain hexadecimal format, with 2 bytes per chunk.
+# Remove newlines with tr.
+# Insert a space between every two characters using sed, preparing each pair of hex digits to be treated as a separate number.
+# Convert hexadecimal numbers to decimal with xargs and printf.
+numbers=$(xxd -p -c 2 "$input_file" | tr -d '\n' | sed 's/../& /g' | xargs -n 1 printf "%d\n")
+
+echo "const uint16_t arr[] = {" > "$output_file"
+echo "$numbers" | xargs | sed 's/ /, /g' >> "$output_file"
+echo "};" >> "$output_file"
+num_elements=$(echo "$numbers" | wc -w)
+echo "const uint32_t arrN = $num_elements;" >> "$output_file"
+
+exit 0
+````
+
+### Зад. 45 2021-SE-02
+
+Един от често използваните DNS сървъри е BIND9, при който описанието на DNS зоните обикновенно
+стои в текстови файлове, наричани зонални файлове. За улеснение, в рамките на задачата, ще ползваме
+опростено описание на зоналните файлове.
+Под whitespace разбираме произволна комбинация от табове и интервали.
+Под FQDN разбираме низ, който има допустими символи малки латински букви, цифри и точка; не
+може да започва с точка, не може да има две или повече съседни точки, задължително завършва с
+точка.
+
+Зоналните файлове съдържат ресурсни записи, по един на ред. Общият вид на даден ресурсен запис e
+<ключ> <TTL> <клас> <тип> <RDATA>, разделени с whitespace, например:
+
+astero.openfmi.net. 3600 IN A 185.117.82.99
+
+Където:
+- ключ (astero.openfmi.net.) – FQDN
+- TTL (3600) – цифри; полето може да липсва
+- клас (IN) - главни латински букви; класът винаги е IN
+- тип (A) - главни латински букви; някое от SOA, NS, A, AAAA
+- RDATA (185.117.82.99) - данни на записа; различни за различните типове ресурсни записи;
+всичко след типа до края на реда.
+
+Знакът точка-и-запетая ; е знак за коментар, и всичко след него до края на реда се игнорира.
+Във всеки зонален файл трябва да има точно един SOA запис, и той трябва да е първият запис във
+файла. Пример за едноредов SOA запис:
+
+astero.openfmi.net. 3600 IN SOA nimbus.fccf.net .root.fccf.net. 2021041901 86400 7200 3024000 3600
+    
+RDATA-та на SOA запис се състои от два FQDN-а и пет числа, разделени с whitespace.
+Въпреки, че горното е валиден SOA запис, за прегледност в зоналните файлове често се ползва следният
+синтаксис (многоредов SOA запис, еквивалентен на горния):
+
+astero.openfmi.net. 3600 IN SOA nimbus.fccf.net .root.fccf.net. (
+                                2021041901 ; serial
+                                86400      ; refresh
+                                7200       ; retry
+                                3024000    ; expire
+                                3600       ; negative TTL
+                                )
+
+т.е., поредицата от числа се разбива на няколко реда, оградени в обикновенни скоби, и за всяко число
+се слага коментар какво означава.
+Първото от тези числа (serial) представлява серийният номер на зоната, който трябва да се увеличава
+всеки път, когато нещо в зоналният файл се промени. Изключително важно е това число само да
+нараства, и никога да не намалява.
+Един от често използваните формати за сериен номер, който показва кога е настъпила последната
+промяна в зоналния файл представлява число във вида YYYYMMDDTT, т.е., четири цифри за година,
+две цифри за месец, две цифри за дата и още две цифри за поредна промяна в рамките на описания
+ден. За последните две цифри (ТТ) има ограничение да са от 00 до 99 (естествено, така не може да има
+повече от 100 промени в рамките на един ден).
+За удобство приемаме, че конкретен сериен номер (точната поредица цифри) се среща само на едно
+място в зоналния файл.
+Напишете шел скрипт, който по подадени имена на зонални файлове променя серийният номер в
+SOA записа на всеки файл по следният алгоритъм:
+- ако датата в серийният номер е по-стара от днешната, новият сериен номер трябва да е от вида
+днешнадата00
+- ако датата в серийният номер е равна на днешната, серийният номер трябва да се увеличи с
+единица
+
+Важат следните условия:
+- скриптът трябва да може да обработва и едноредови, и многоредови SOA записи
+- за всеки зонален файл, който не е успял да обработи, скриптът трябва да вади съобщение за
+  грешка, което включва и името на зоналния файл. Съобщенията трябва да са лесно обработваеми
+  с познатите инструменти за обработка на текст
+
+````shell
+#!/bin/bash
+
+if [[ $# -eq 0 ]]; then
+   echo "Usage: $0 zonefile1 [zonefile2 ...]"
+   exit 1
+fi
+
+today=$(date +%Y%m%d) 
+
+for file in "$@"; do
+    if [[ ! -f "$file" ]];then
+      echo "ERROR: File $file not found."
+      continue
+    fi
+      
+     # here we assume that the only 10 digit number will be the serial one , we find a better way for finding it
+     current_serial=$(grep -Eo '[0-9]{10}' "$file" | head -1)
+
+    if [[ -z "$current_serial" ]]; then
+        echo "ERROR: No valid SOA serial number found in $file."
+        continue
+    fi
+
+    current_date=${current_serial:0:8} # ${variable:start:length} -> extract a substring from $variable.
+    revision=${current_serial:8:2}  
+
+    if [ "$current_date" -lt "$today" ]; then
+        new_serial="${today}00"
+    elif [ "$current_date" -eq "$today" ]; then
+        new_revision=$(printf "%02d" $((10#$revision + 1))) # %02 to pad with 0 ;#10 interpret as decimal -> by default bash works with octal
+        new_serial="${today}${new_revision}"
+    else
+        echo "ERROR: SOA serial date is in the future in $file."
+        continue
+    fi
+
+    sed -i "s/$current_serial/$new_serial/" "$file"
+    echo "INFO: Updated SOA serial number in $file to $new_serial."
+done
+
+````
