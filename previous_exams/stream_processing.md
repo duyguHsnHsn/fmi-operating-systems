@@ -410,9 +410,9 @@ fi
 
 # Use xxd to dump the binary data in plain hexadecimal format, with 2 bytes per chunk.
 numbers= xxd -p -c 2 example-soa | awk '{print "0x"$1","}'
-num_elements=$(echo "$numbers" | wc -w)
+num_elements=$(echo "$numbers" | wc -l)
 
-num_elements=$(echo "$numbers" | wc -w)
+
 echo "const uint16_t arr[${num_elements}] = {" > "$output_file"
 echo "$numbers" >> "$output_file"
 echo "};" >> "$output_file"
@@ -527,4 +527,214 @@ for file in "$@"; do
     echo "INFO: Updated SOA serial number in $file to $new_serial."
 done
 
+````
+### 2022-SE-01
+
+ Съвременните компютри могат да влизат в различни режими за енергоспестяване (suspend) и излизат от този режим (wake-up) при настъпването на определени събития. Linux kernel предоставя
+специален виртуален файл /proc/acpi/wakeup, чрез който може да се проверява или променя настройката
+за “събуждане” при настъпване на различни събития, в общия случай - при активност на някое устройство.
+Тъй като този файл е интерфейс към ядрото, “четенето” от файла и “писането” във файла изглеждат
+различно.
+За улеснение на задачата ще ползваме опростено описание на този файл.
+Под whitespace разбираме произволна комбинация от табове и интервали. При четене от файла изходът
+представлява четири колони, разделени с whitespace, в полетата не може да има whitespace; първият
+ред е header на съответната колона. Примерно съдържание на файла:
+````text
+Device S-state Status       Sysfs n ode
+GLAN   S4      *enabled     pci:0000:00:1f.6
+XHC    S3      *enabled     pci:0000:00:14.0
+XDCI   S4      *disabled
+LID    S4      *enabled     platform:PNP0C0D:00
+HDAS   S4      *disabled    pci:0000:00:1f.3
+RP01   S4      *enabled     pci:0000:00:1c.0
+````
+където:
+- първата колона дава уникално име на устройство, което може да събуди машината, като името
+е ограничено до четири знака главни латински букви и цифри;
+- третата колона описва дали това устройство може да събуди машината. Възможните стойности
+са enabled/disabled, предхождани от звездичка;
+- втората и четвъртата колона ги игнорираме в рамките на задачата.
+
+При записване на име на устройство във файла /proc/acpi/wakeup, неговото състояние се променя
+от disabled на enabled или обратно. Например, ако файлът изглежда както примера по-горе, при
+запис на XHC в него, третият ред ще се промени на:
+
+  XHC    S3      *disabled     pci:0000:00:14.0
+
+При запис на HDAS , шестият ред ще се промени на:
+
+  HDAS   S4      *disabled    pci:0000:00:1f.3
+
+Дефиниран е формат на конфигурационен файл, който описва желан комплект от настройки на wakeup събития. Примерен файл:
+````text
+# comment bar
+GLAN disabled
+LID enabled # comment foo
+````
+където:
+- знакът диез (# ) е знак за коментар до края на реда;
+- редовете би трябвало да са комбинация от име на устройство и желаното състояние на настройката
+за събуждане при събития от това устройство, разделени с whitespace.
+
+Напишете скрипт, който при подаден първи параметър име на конфигурационен файл в горния формат
+осигурява исканите настройки за събуждане. Ако във файла има ред за устройство, което не съществува,
+скриптът да извежда предупреждение. Обърнете внимание на обработката за грешки и съобщенията
+към потребителя – искаме скриптът да бъде удобен и валиден инструмент.
+
+````shell
+#!/bin/bash
+
+CONFIG_FILE="$1"
+
+if [[ "$#" -ne 1 ]] || [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "Usage: $0 <config_file>"
+    exit 1
+fi
+
+current_settings=$(cat /proc/acpi/wakeup)
+
+while read -r line; do
+  
+    line=$(echo "$line" | sed 's/#.*//')
+    
+    if [[ -z "$line" ]]; then
+        continue
+    fi
+
+    device_name=$(echo "$line" | awk '{print $1}')
+    desired_status=$(echo "$line" | awk '{print $2}')
+
+    if echo "$current_settings" | grep -q "^$device_name"; then
+        if [[ "$desired_status" == "enabled" ]]; then
+              current_settings=$(echo "$current_settings" | sed "/^$device_name[[:space:]]/s/\*disabled/\*enabled/")
+        elif [[ "$desired_status" == "disabled" ]]; then
+            current_settings=$(echo "$current_settings" | sed "/^$device_name[[:space:]]/s/\*enabled/\*disabled/")
+        fi
+    else
+        echo "WARN: Device '$device_name' does not exist in /proc/acpi/wakeup!"
+    fi
+done < "$CONFIG_FILE"
+
+echo "$current_settings" > /proc/acpi/wakeup
+exit 0
+````
+### 2022-SE-02
+ Дефинирана е система за бекъпване на сървъри, която държи направените архиви в
+главна директория (която ще наричаме fubar), в която има четири под-директории за различни класове
+бекъпи:
+- 0 – съдържа годишни бекъпи
+- 1 – съдържа месечни бекъпи
+- 2 – съдържа седмични бекъпи
+- 3 – съдържа дневни бекъпи
+
+Всяка директория съдържа архивни файлове с имена във формат hostname-area-YYYYMMDD.tar.xz,
+където:
+- hostname името на някаква машина, която е бекъпвана;
+- area е типът бекъп за съответната машина;
+- YYYYMMDD е датата, на която е направен бекъпа;
+- никое от горните полета не може да съдържа тире или точка;
+- някои от файловете могат да са symlink-ове.
+
+Примерни имена на файлове:
+````text
+astero-etc-20220323.tar.xz stratios-etc-20220428.tar.xz  nestor-db-20220404.tar.xz 
+gila-srv-20220405.tar.xz  catalyst-var-20220406.tar.xz  drake-home-20220404.tar.xz 
+dominix-var-20220404.tar.xz 
+````
+
+Комбинацията от hostname и area дефинира уникален обект за бекъпване. Всички архивни файлове
+са пълноценни бекъпи на даден обект и са достатъчни за неговото възстановяване при нужда (заб.
+извън обхвата на задачата).
+Ако даден файл е symlink, то той може да е валиден или счупен. Symlink-овете са създадени за удобство
+и не ги считаме за пълноценни бекъпи.
+Политиката ни за бекъп казва, че за да имаме валиден бекъп на даден обект, за него трябва да имаме
+минимум 1 годишен, 2 месечни, 3 седмични и 4 дневни пълноценни бекъпа.
+
+Важност:
+- обектите са равни по важност помежду си;
+- важността на класовете бекъпи е във възходящ ред по горния списък, т.е. при равни други
+условия дневните бекъпи са по-ценни от седмичните и т.н.;
+- в рамките на един клас бекъпи по-новите бекъпи са по-важни от по-старите.
+
+Напишете shell скрипт, който приема два два задължителни позиционни аргумента – име на директория
+и число в интервала [1, 99]. Примерно извикване: ./foo.sh ./bar/ 30 където:
+- директорията представлява главна директория (fubar) на описаната система за бекпъване;
+- числото дефинира колко процента е максималното допустимо използвано място на файловата
+система, в която се намира подадената директория.
+
+За удобство приемаме, че директорията fubar и всички обекти в нея се намират в една и съща файлова
+система.
+Упътване: Командата df извикана с аргумент име на файл/директория връща информация за файловата
+система, в която той се намира. 
+Пример:
+````shell
+$df ./README.md
+````
+````text
+Filesystem          1K-blocks   Used        Available   Use%    Mounted on
+/dev/mapper/o7-hm   100663296   61735732    37288764    63%     /home
+````
+
+Скриптът трябва да изтрива минимален брой пълноценни архивни файлове така, че:
+- всеки обект да има валиден бекъп;
+- обръща внимание на описаните по-горе важности;
+- процентите използвано място върху файловата система да е не повече от подаденият параметър
+(a ако това е невъзможно, скриптът да освободи колкото може повече място, без да нарушава
+валидностите на бекъпите на обектите);
+- не е допустимо след работата на скрипта да останат счупени symlink–ове.
+
+````shell
+#!/bin/bash
+
+if [[ "$#" -ne 2 ]]; then
+    echo "Usage: $0 <directory> <max_percent>"
+    exit 1
+fi
+
+backup_dir=$1
+max_percent=$2
+
+if [[ ! -d "$backup_dir" ]]; then
+    echo "Error: Directory $backup_dir does not exist."
+    exit 1
+fi
+
+current_usage=$(df "$backup_dir" | awk 'NR==2 {print $5}' | sed 's/%//')
+
+if [[ "$current_usage" -le "$max_percent" ]]; then
+    echo "Current usage ($current_usage%) is within the limit ($max_percent%). No action needed."
+    exit 0
+fi
+
+find -L "$backup_dir" -type l -delete
+
+backup_files=$(find "$backup_dir" -type f -name "*.tar.xz" | awk -F '[/-]' '{print $(NF-1) " " $0}' | sort -k1,1n | awk '{print $2}')
+
+for file in $backup_files; do
+    filename=$(basename "$file")
+    hostname=$(echo "$filename" | cut -d'-' -f1)
+    area=$(echo "$filename" | cut -d'-' -f2)
+
+    min_yearly=1
+    min_monthly=2
+    min_weekly=3
+    min_daily=4
+
+    yearly_count=$(find "$backup_dir/0" -type f -name "$hostname-$area-*.tar.xz" | wc -l)
+    monthly_count=$(find "$backup_dir/1" -type f -name "$hostname-$area-*.tar.xz" | wc -l)
+    weekly_count=$(find "$backup_dir/2" -type f -name "$hostname-$area-*.tar.xz" | wc -l)
+    daily_count=$(find "$backup_dir/3" -type f -name "$hostname-$area-*.tar.xz" | wc -l)
+
+    if [[ "$yearly_count" -ge "$min_yearly" && "$monthly_count" -ge "$min_monthly" && "$weekly_count" -ge "$min_weekly" && "$daily_count" -ge "$min_daily" ]]; then
+        rm -f "$file"
+        echo "Removed $file to free up space."
+
+        current_usage=$(df "$backup_dir" | awk 'NR==2 {print $5}' | sed 's/%//')
+        if [ "$current_usage" -le "$max_percent" ]; then
+            break
+        fi
+    fi
+done
+
+exit 0
 ````
