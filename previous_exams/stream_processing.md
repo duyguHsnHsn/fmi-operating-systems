@@ -408,18 +408,14 @@ if [ $(stat -c %s "$input_file") -gt $((524288 * 2)) ]; then # 524288 * 2 bites
     exit 1
 fi
 
-# this is checked with chatgpt; try to find sth better
 # Use xxd to dump the binary data in plain hexadecimal format, with 2 bytes per chunk.
-# Remove newlines with tr.
-# Insert a space between every two characters using sed, preparing each pair of hex digits to be treated as a separate number.
-# Convert hexadecimal numbers to decimal with xargs and printf.
-numbers=$(xxd -p -c 2 "$input_file" | tr -d '\n' | sed 's/../& /g' | xargs -n 1 printf "%d\n")
-
-echo "const uint16_t arr[] = {" > "$output_file"
-echo "$numbers" | xargs | sed 's/ /, /g' >> "$output_file"
-echo "};" >> "$output_file"
+numbers= xxd -p -c 2 example-soa | awk '{print "0x"$1","}'
 num_elements=$(echo "$numbers" | wc -w)
-echo "const uint32_t arrN = $num_elements;" >> "$output_file"
+
+num_elements=$(echo "$numbers" | wc -w)
+echo "const uint16_t arr[${num_elements}] = {" > "$output_file"
+echo "$numbers" >> "$output_file"
+echo "};" >> "$output_file"
 
 exit 0
 ````
@@ -467,7 +463,8 @@ astero.openfmi.net. 3600 IN SOA nimbus.fccf.net .root.fccf.net. (
 
 т.е., поредицата от числа се разбива на няколко реда, оградени в обикновенни скоби, и за всяко число
 се слага коментар какво означава.
-Първото от тези числа (serial) представлява серийният номер на зоната, който трябва да се увеличава
+Първото от тези числа (
+) представлява серийният номер на зоната, който трябва да се увеличава
 всеки път, когато нещо в зоналният файл се промени. Изключително важно е това число само да
 нараства, и никога да не намалява.
 Един от често използваните формати за сериен номер, който показва кога е настъпила последната
@@ -506,8 +503,7 @@ for file in "$@"; do
       continue
     fi
       
-     # here we assume that the only 10 digit number will be the serial one , we find a better way for finding it
-     current_serial=$(grep -Eo '[0-9]{10}' "$file" | head -1)
+     current_serial=$(grep "; serial" ${file} | awk -F" " '{print $1}' && cat ${file} | grep -v "(\|;\|)" | awk -F" " '{print $7}')
 
     if [[ -z "$current_serial" ]]; then
         echo "ERROR: No valid SOA serial number found in $file."
