@@ -738,3 +738,163 @@ int main(int argc, char *argv[]) {
 }
 
 ```
+
+### Зад. 90 2022-SE-01
+ Напишете програма на C, която приема два позиционни аргумента – имена на двоични
+файлове. Примерно извикване: ./main data.bin comparator.bin
+
+
+Файлът data.bin се състои от две секции – 8 байтов хедър и данни. Структурата на хедъра е:
+- uint32_, magic – магическа стойност 0x21796F4A, която дефинира, че файлът следва тази спецификация;
+- uint32_t, count – описва броя на елементите в секцията с данни.
+
+Секцията за данни се състои от елементи – uint64_t числа.
+
+
+Файлът comparator.bin се състои от две секции – 16 байтов хедър и данни. Структурата на хедъра е:
+- uint32_t, magic1 – магическа стойност 0xAFBC7A37;
+- uint16_t, magic2 – магическа стойност 0x1C27;
+- комбинацията от горните две magic числа дефинира, че файлът следва тази спецификация;
+- uint16_t, reserved – не се използва;
+- uint64_t, count – описва броя на елементите в секциата с данни.
+
+Секцията за данни се състои от елементи – наредени 6-торки:
+- uint16_t, type – възможни стойности: 0 или 1;
+- 3 бр. uint16_t, reserved – възможни стойности за всяко: 0;
+- uint32_t, offset1;
+- uint32_t, offset2.
+
+Двете числа offset дефинират отместване (спрямо ℕ0) в брой елементи за data.bin; type дефинира
+операция за сравнение:
+- 0 : “по-малко”;
+- 1 : “по-голямо”.
+
+Елементите в comparator.bin дефинират правила от вида:
+- “елементът на offset1” трябва да е “по-малък” от “елементът на offset2”;
+- “елементът на offset1” трябва да е “по-голям” от “елементът на offset2”.
+
+Програмата трябва да интепретира по ред дефинираните правила в comparator.bin и ако правилото не е изпълнено,
+ да разменя in-place елементите на съответните отмествания. Елементи, които са
+равни, няма нужда да се разменят
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+#define DATA_MAGIC 0x21796F4A
+#define COMP_MAGIC1 0xAFBC7A37
+#define COMP_MAGIC2 0x1C27
+
+void read_exact(int fd, void *buf, size_t count) { // void pointer for the buffer -> accept any type of data
+    ssize_t bytes_read = read(fd, buf, count);
+    if (bytes_read == =1 ){
+        errx(2, "read")
+    }
+    if (bytes_read != count) {
+        errx(3, "Short read: expected %zu, got %zd\n", count, bytes_read);
+    }
+}
+
+void write_exact(int fd, const void *buf, size_t count) {
+    ssize_t bytes_written = write(fd, buf, count);
+    if (bytes_written == =1 ){
+        errx(2, "write")
+    }
+    if (bytes_written != count) {
+        errx(3, "Short write: expected %zu, got %zd\n", count, bytes_written);
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        errx(1, "Usage: %s <data.bin> <comparator.bin>\n", argv[0]);
+    }
+s
+    int data_fd =open(argv[1], O_RDONLY);
+	if(data_fd == -1) { err(1, "%s", argv[1]); }
+
+    int comp_fd = open(argv[2], O_RDONLY);
+    if (comp_fd == -1) {
+        close(data_fd);
+        err(1, "%s", argv[2]); 
+    }
+
+    // data.bin headers
+    uint32_t data_magic;
+    uint32_t data_count;
+    read_exact(data_fd, &data_magic, sizeof(dasta_magic));
+    read_exact(data_fd, &data_count, sizeof(data_count));
+    if (data_magic != DATA_MAGIC) {
+        close(data_fd);
+        close(comp_fd);
+        errx(2, "Invalid magic number in data.bin\n");
+    }
+
+    // comparator.bin header
+    uint32_t comp_magic1;
+    uint16_t comp_magic2;
+    uint16_t comp_reserved;
+    uint64_t comp_count;
+    read_exact(comp_fd, &comp_magic1, sizeof(comp_magic1));
+    read_exact(comp_fd, &comp_magic2, sizeof(comp_magic2));
+    read_exact(comp_fd, &comp_reserved, sizeof(comp_reserved));
+    read_exact(comp_fd, &comp_count, sizeof(comp_count));
+    if (comp_magic1 != COMP_MAGIC1 || comp_magic2 != COMP_MAGIC2) {
+        close(data_fd);
+        close(comp_fd);
+        errx(2,  "Invalid magic number in comparator.bin\n");
+    }
+
+    // comparison rules
+    for (uint64_t i = 0; i < comp_count; ++i) {
+        uint16_t type;
+        uint16_t reserved[3];
+        uint32_t offset1, offset2;
+        read_exact(comp_fd, &type, sizeof(type));
+        read_exact(comp_fd, reserved, sizeof(reserved));
+        read_exact(comp_fd, &offset1, sizeof(offset1));
+        read_exact(comp_fd, &offset2, sizeof(offset2));
+
+        if (offset1 >= data_count || offset2 >= data_count) {
+             close(data_fd);
+            close(comp_fd);
+            errx(2, "Invalid offsets in comparator.bin: %u, %u\n", offset1, offset2);
+        }
+
+        // elements from data.bin
+        uint64_t element1, element2;
+        // considering the offsets relative to the start of the data section
+        lseek(data_fd, 8 + offset1 * sizeof(uint64_t), SEEK_SET); // we add 8 because of the header which contains two 4 byte elements
+        read_exact(data_fd, &element1, sizeof(element1));
+        lseek(data_fd, 8 + offset2 * sizeof(uint64_t), SEEK_SET);
+        read_exact(data_fd, &element2, sizeof(element2));
+
+        // comparison and possibly swap
+        int should_swap = 0;
+        if (type == 0 && element1 >= element2) {
+            should_swap = 1;
+        } else if (type == 1 && element1 <= element2) {
+            should_swap = 1;
+        }
+
+        if (should_swap) {
+            lseek(data_fd, 8 + offset1 * sizeof(uint64_t), SEEK_SET);
+            write_exact(data_fd, &element2, sizeof(element2));
+            lseek(data_fd, 8 + offset2 * sizeof(uint64_t), SEEK_SET);
+            write_exact(data_fd, &element1, sizeof(element1));
+        }
+    }
+
+    close(data_fd);
+    close(comp_fd);
+    return 0;
+}
+
+
+```
