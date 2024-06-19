@@ -895,6 +895,389 @@ s
     close(comp_fd);
     return 0;
 }
+```
+
+### Зад. 74 2017-SE-01
+```text
+Напишете програма на C, която приема три параметъра – имена на двоични файлове.
+Примерно извикване:
+$ ./main f1.bin f2.bin patch.bin
+Файловете f1.bin и f2.bin се третират като двоични файлове, състоящи се от байтове (uint8_t). Файлът f1.bin e “оригиналният” файл, а f2.bin е негово
+копие, което е било модифицирано по някакъв начин (извън обхвата на тази задача). Файлът patch.bin е двоичен файл, състоящ се от наредени
+тройки от следните елементи (и техните типове):
+
+
+- отместване (uint16_t) – спрямо началото на f1.bin/f2.bin
+- оригинален байт (uint8_t) – на тази позиция в f1.bin
+- нов байт (uint8_t) – на тази позиция в f2.bin
+
+Вашата програма да създава файла patch.bin, на базата на съществуващите файлове f1.bin и f2.bin,
+като описва вътре само разликите между двата файла. Ако дадено отместване съществува само в единия от файловете f1.bin/f2.bin,
+програмата да прекратява изпълнението си по подходящ начин.
+
+Примерен f1.bin:
+00000000: f5c4 b159 cc80 e2ef c1c7 c99a 2fb0 0d8c ...Y......../...
+00000010: 3c83 6fed 6b46 09d2 90df cf1e 9a3c 1f05 <.o.kF.......<..
+00000020: 05f9 4c29 fd58 a5f1 cb7b c9d0 b234 2398 ..L).X...{...4#.
+00000030: 35af 6be6 5a71 b23a 0e8d 08de def2 214c 5.k.Zq.:......!L
+
+Примерен f2.bin:
+00000000: f5c4 5959 cc80 e2ef c1c7 c99a 2fb0 0d8c ..YY......../...
+00000010: 3c83 6fed 6b46 09d2 90df cf1e 9a3c 1f05 <.o.kF.......<..
+00000020: 05f9 4c29 fd58 a5f1 cb7b c9d0 b234 2398 ..L).X...{...4#.
+00000030: afaf 6be6 5a71 b23a 0e8d 08de def2 214c ..k.Zq.:......!L
+
+Примерен patch.bin:
+00000000: 0200 b159 3000 35af ...Y0.5.
+
+```
+
+```c
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <err.h>
+
+void read_exact(int fd, void *buffer, size_t size) {
+    ssize_t bytes_read;
+    while (size > 0 && (bytes_read = read(fd, buffer, size)) != 0) {
+        if (bytes_read == -1) {
+            errx(1, "Error reading file");
+        }
+        size -= bytes_read;
+        buffer += bytes_read;
+    }
+    if (size > 0) {
+        errx(1, "Unexpected end of file");
+    }
+}
+
+void write_exact(int fd, const void *buffer, size_t size) {
+    ssize_t bytes_written;
+    while (size > 0 && (bytes_written = write(fd, buffer, size)) != 0) {
+        if (bytes_written == -1) {
+            errx(1, "Error writing file");
+        }
+        size -= bytes_written;
+        buffer += bytes_written;
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        errx(1, "Usage: %s f1.bin f2.bin patch.bin", argv[0]);
+    }
+
+    int fd1 = open(argv[1], O_RDONLY);
+    if (fd1 == 0) {
+        errx(1, "Error opening %s", argv[1]);
+    }
+
+    int fd2 = open(argv[2], O_RDONLY);
+    if (fd2 == 0) {
+        errx(1, "Error opening %s", argv[2]);
+    }
+
+    int patch_fd = open(argv[3],  O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR)
+    if (patch_fd == 0) {
+        err(1, "Error opening %s", argv[3]);
+    }
+
+    struct stat st1, st2;
+    if (fstat(fd1, &st1) < 0 || fstat(fd2, &st2) < 0) {
+        errx(1, "Error getting file size");
+    }
+
+    if (st1.st_size != st2.st_size) {
+        errx(1, "Files must be of the same size");
+    }
+
+    uint16_t offset = 0;
+    uint8_t byte1, byte2;
+
+    for (off_t i = 0; i < st1.st_size; i++) {
+        read_exact(fd1, &byte1, sizeof(byte1));
+        read_exact(fd2, &byte2, sizeof(byte2));
+
+        if (byte1 != byte2) {
+            write_exact(patch_fd, &offset, sizeof(offset));
+            write_exact(patch_fd, &byte1, sizeof(byte1));
+            write_exact(patch_fd, &byte2, sizeof(byte2));
+        }
+
+        offset++;
+    }
+
+    close(fd1);
+    close(fd2);
+    close(patch_fd);
+
+    return 0;
+}
+
+```
+
+#### Зад. 77 2017-SE-04 
+
+Напишете програма на C, която да работи подобно на командата cat , реализирайки само
+следната функционалност:
+- програмата извежда на STDOUT
+- ако няма подадени параметри, програмата чете от STDIN
+- ако има подадени параметри – файлове, програмата последователно ги извежда
+- ако някой от параметрите започва с тире (-), програмата да го третира като специално име за
+STDIN
+
+
+Примерно извикване:
+
+```shell
+$ ./main f - g
+```
+
+- извежда съдържанието на файла f, после STDIN, след това съдържанието на файла g.
+
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+#include <err.h>
+
+void read_and_write(int fd) {
+    char buffer[4096];
+    ssize_t bytes_read;
+    while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) {
+        if (write(STDOUT_FILENO, buffer, bytes_read) != bytes_read) {
+            errx(1, "write error");
+        }
+    }
+    if (bytes_read < 0) {
+        errx(1, "read error");
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc == 1) {
+        // read from stdin
+        read_and_write(0);
+    } else {
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "-") == 0) {
+                //stdin
+                read_and_write(0);
+            } else {
+                int fd = open(argv[i], O_RDONLY);
+                if (fd == -1) {
+                    errx(2, "Cannot open file %s", argv[i]);
+                }
+                read_and_write(fd);
+                close(fd);
+            }
+        }
+    }
+    return 0;
+}
+
+
 
 
 ```
+
+
+### Зад. 79 2018-SE-02 
+Напишете програма на C, която приема два параметъра – имена на файлове:
+- примерно извикване: ./main input.bin output.bin
+- файловете input.bin и output.bin се третират като двоични файлове, състоящи се от uint32_t
+числа
+- файлът input.bin може да съдържа максимум 4194304 числа
+- файлът output.bin трябва да бъде създаден от програмата и да съдържа числата от input.bin,
+сортирани във възходящ ред
+- endianness-ът на машината, създала файла input.bin е същият, като на текущата машина
+- ограничения на ресурси: програмата трябва да работи с употреба на максимум 9 MB RAM и 64
+MB дисково пространство.
+
+```c    
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <err.h>
+
+#define MAX_NUMBERS 4194304
+#define MAX_RAM_USAGE 9437184  // 9 MB in bytes
+
+int compare_uint32(const void *a, const void *b) {
+    uint32_t arg1 = *(const uint32_t *)a;
+    uint32_t arg2 = *(const uint32_t *)b;
+    return (arg1 > arg2) - (arg1 < arg2);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        errx(1, "Usage: %s input.bin output.bin\n", argv[0]);
+    }
+
+    int input_fd = open(argv[1], O_RDONLY);
+    if (input_fd == -1) {
+        errx(1, "Cannot open input file %s", argv[1]);
+    }
+
+    // size of the input file
+    off_t input_size = lseek(input_fd, 0, SEEK_END);
+    if (input_size == -1) {
+        errx(2, "Error seeking input file %s", argv[1]);
+    }
+    lseek(input_fd, 0, SEEK_SET);
+
+    size_t num_numbers = input_size / sizeof(uint32_t);
+    if (num_numbers > MAX_NUMBERS) {
+        errx(3 "Input file %s exceeds the maximum number of %d uint32_t numbers", argv[1], MAX_NUMBERS);
+    }
+
+    if (num_numbers * sizeof(uint32_t) > MAX_RAM_USAGE) {
+        errx(4, "Memory required exceeds maximum allowed RAM usage");
+    }
+
+    uint32_t *numbers = malloc(num_numbers * sizeof(uint32_t));
+    if (numbers == NULL) {
+        errx(4, "Unable to allocate memory");
+    }
+
+
+    if (read(input_fd, numbers, input_size) != input_size) {
+        errx(2, "Error reading input file %s", argv[1]);
+    }
+    close(input_fd);
+
+
+    qsort(numbers, num_numbers, sizeof(uint32_t), compare_uint32);
+
+    int output_fd = open(argv[2],  O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR)
+    if (output_fd == -1) {
+        errx(2, "Cannot open output file %s", argv[2]);
+    }
+
+    if (write(output_fd, numbers, input_size) != input_size) {
+        errx(2, "Error writing to output file %s", argv[2]);
+    }
+
+    close(output_fd);
+    free(numbers);
+
+    return 0;
+}
+
+```
+
+### Зад. 80 2018-SE-03 
+Напишете програма на C, която да работи подобно на командата cut, реализирайки само
+следната функционалност:
+- програмата трябва да чете текст от стандартния вход и да извежда избраната част от всеки ред
+на стандартния изход;
+- ако първият параметър на програмата е низът -c , тогава вторият параметър е или едноцифрено
+число (от 1 до 9), или две едноцифрени числа N и M (𝑁 ≤ 𝑀), разделени с тире (напр. 3-5 ).
+В този случай програмата трябва да изведе избраният/избраните символи от реда: или само
+символа на указаната позиция, или няколко последователни символи на посочените позиции.
+- ако първият параметър на програмата е низът -d, тогава вторият параметър е низ, от който е
+важен само първият символ; той се използва като разделител между полета на реда. Третият
+параметър трябва да бъде низът -f ,а четвъртият - или едноцифрено число (от 1 до 9), или две
+едноцифрени числа N и M (𝑁 ≤ 𝑀), разделени с тире (напр. 3-5 ). В този случай програмата
+трябва да разглежда реда като съставен от няколко полета (може би празни), разделени от указания символ (първият символ от низа, следващ парметъра -d ),
+и да изведе или само указаното поле, или няколко последователни полета на указаните позиции, разделени от същия разделител.
+- ако някой ред няма достатъчно символи/полета, за него програмата трябва да изведе каквото
+(докъдето) е възможно (или дори празен ред)
+
+```c
+
+```
+
+### Зад. 81 2018-SE-04 
+Напишете програма на C, която приема два параметъра – имена на файлове:
+- примерно извикване: ./main input.bin output.bin
+- файловете input.bin и output.bin се третират като двоични файлове, състоящи се от uint16_t
+числа
+- файлът input.bin може да съдържа максимум 65535 числа
+- файлът output.bin трябва да бъде създаден от програмата и да съдържа числата от input.bin,
+сортирани във възходящ ред
+- endianness-ът на машината, създала файла input.bin е същият, като на текущата машина
+- ограничения на ресурси: програмата трябва да работи с употреба на максимум 256 KB RAM и 2
+MB дисково пространство.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <err.h>
+
+#define MAX_NUMBERS 65535
+#define MAX_RAM_USAGE (256 * 1024)  // 256 KB in bytes
+
+int compare_uint16(const void *a, const void *b) {
+    uint16_t arg1 = *(const uint16_t *)a;
+    uint16_t arg2 = *(const uint16_t *)b;
+    return (arg1 > arg2) - (arg1 < arg2);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        errx(1, "Usage: %s input.bin output.bin\n", argv[0]);
+    }
+
+    int input_fd = open(argv[1], O_RDONLY);
+    if (input_fd == -1) {
+        err(1, "Cannot open input file %s", argv[1]);
+    }
+
+    // size of the input file
+    off_t input_size = lseek(input_fd, 0, SEEK_END);
+    if (input_size == -1) {
+        err(2, "Error seeking input file %s", argv[1]);
+    }
+    lseek(input_fd, 0, SEEK_SET);
+
+    size_t num_numbers = input_size / sizeof(uint16_t);
+    if (num_numbers > MAX_NUMBERS) {
+        errx(3, "Input file %s exceeds the maximum number of %d uint16_t numbers", argv[1], MAX_NUMBERS);
+    }
+
+    if (num_numbers * sizeof(uint16_t) > MAX_RAM_USAGE) {
+        errx(4, "Memory required exceeds maximum allowed RAM usage");
+    }
+
+    uint16_t *numbers = malloc(num_numbers * sizeof(uint16_t));
+    if (numbers == NULL) {
+        err(4, "Unable to allocate memory");
+    }
+
+    if (read(input_fd, numbers, input_size) != input_size) {
+        err(2, "Error reading input file %s", argv[1]);
+    }
+    close(input_fd);
+
+    qsort(numbers, num_numbers, sizeof(uint16_t), compare_uint16);
+
+    int output_fd = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if (output_fd == -1) {
+        err(2, "Cannot open output file %s", argv[2]);
+    }
+
+    if (write(output_fd, numbers, input_size) != input_size) {
+        err(2, "Error writing to output file %s", argv[2]);
+    }
+
+    close(output_fd);
+    free(numbers);
+
+    return 0;
+}
+
+``` 
