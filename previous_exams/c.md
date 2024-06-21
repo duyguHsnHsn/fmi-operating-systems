@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 	    	    err(4, "can't read f2");
     	    }
 
-            ssize_t written_bytes = write(f3, buffer, read_bytes);
+            ssize_t written_bytes = write(f3, buffer, read_bytes_third);
              if(written_bytes == -1) {
 	    	    err(4, "can't write f3");
     	    }
@@ -451,9 +451,9 @@ void decode_and_write(int input_fd, int output_fd) {
                     }
                     byte ^= XOR_VALUE;
                 }
-            }
-            if (write(output_fd, &byte, 1) != 1) {
+                 if (write(output_fd, &byte, 1) != 1) {
                 errx(1, "write to output file");
+            }
             }
         }
     }
