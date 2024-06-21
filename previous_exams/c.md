@@ -593,7 +593,12 @@ int main(int argc, char *argv[]) {
             }
         }
         close(pipes[i][0]);
-        if (found) break;
+        if (found) {
+            for (int j = i + 1; j < num_commands; j++) {
+                close(pipes[j][0]);
+            }
+            break;
+            }
     }
 
     for (int i = 0; i < num_commands; i++) {
