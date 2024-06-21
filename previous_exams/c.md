@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 	    	    err(4, "can't read f2");
     	    }
 
-            ssize_t written_bytes = write(f3, buffer, read_bytes_third);
+            ssize_t written_bytes = write(f3, buffer, read_bytes);
              if(written_bytes == -1) {
 	    	    err(4, "can't write f3");
     	    }
@@ -302,7 +302,7 @@ int main(int argc, char *argv[]) {
 
 ### Зад. 101 2020-SE-01
 
- Напишете две програми на C (foo и bar), които си комуникират през 
+ Напишете две програми на C (foo и bar), които си комуникират през наименована тръба.
 Програмата foo приема параметър - име на файл, програмата bar приема параметър - команда като
 абсолютен път до изпълним файл.
 Примерни извиквания и ред на изпълнение (в отделни терминали):
@@ -745,7 +745,7 @@ int main(int argc, char *argv[]) {
 
 
 Файлът data.bin се състои от две секции – 8 байтов хедър и данни. Структурата на хедъра е:
-- uint32_, magic – магическа стойност 0x21796F4A, която дефинира, че файлът следва тази спецификация;
+- uint32_t, magic – магическа стойност 0x21796F4A, която дефинира, че файлът следва тази спецификация;
 - uint32_t, count – описва броя на елементите в секцията с данни.
 
 Секцията за данни се състои от елементи – uint64_t числа.
@@ -793,21 +793,15 @@ int main(int argc, char *argv[]) {
 
 void read_exact(int fd, void *buf, size_t count) { // void pointer for the buffer -> accept any type of data
     ssize_t bytes_read = read(fd, buf, count);
-    if (bytes_read == =1 ){
+    if (bytes_read == = -1 ){
         errx(2, "read")
-    }
-    if (bytes_read != count) {
-        errx(3, "Short read: expected %zu, got %zd\n", count, bytes_read);
     }
 }
 
 void write_exact(int fd, const void *buf, size_t count) {
     ssize_t bytes_written = write(fd, buf, count);
-    if (bytes_written == =1 ){
+    if (bytes_written == -1 ){
         errx(2, "write")
-    }
-    if (bytes_written != count) {
-        errx(3, "Short write: expected %zu, got %zd\n", count, bytes_written);
     }
 }
 
@@ -815,8 +809,8 @@ int main(int argc, char *argv[]) {
     if (argc != 3) {
         errx(1, "Usage: %s <data.bin> <comparator.bin>\n", argv[0]);
     }
-s
-    int data_fd =open(argv[1], O_RDONLY);
+
+    int data_fd =open(argv[1], O_RDWR);
 	if(data_fd == -1) { err(1, "%s", argv[1]); }
 
     int comp_fd = open(argv[2], O_RDONLY);
@@ -828,7 +822,7 @@ s
     // data.bin headers
     uint32_t data_magic;
     uint32_t data_count;
-    read_exact(data_fd, &data_magic, sizeof(dasta_magic));
+    read_exact(data_fd, &data_magic, sizeof(data_magic));
     read_exact(data_fd, &data_count, sizeof(data_count));
     if (data_magic != DATA_MAGIC) {
         close(data_fd);
