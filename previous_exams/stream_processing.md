@@ -152,7 +152,7 @@ exit 0
 
 ### 61 2023-SE-02
 
-Задачата ви е да напишете скрипт b e n c h m a r k . s h , който измерва средното време за изпълнение на
+Задачата ви е да напишете скрипт benchmark.sh , който измерва средното време за изпълнение на
 дадена команда. Първият аргумент на скрипта е число (време за провеждане на експеримента, в
 секунди), а останалите аргументи на скрипта са измерваната команда и нейните аргументи.
 Скриптът трябва да изпълнява подадената команда многократно, докато изтече подаденото време.
@@ -168,7 +168,7 @@ exit 0
 ````shell
 #!/bin/bash
 
-if [ "${#}" -lt 2 ]; then
+if [[ "${#}" -lt 2 ]]; then
   echo "Usage: $0 <duration in seconds> <command> [arguments...]"
   exit 1
 fi
@@ -181,7 +181,7 @@ end_time=$(( $(date +%s) + duration )) # date +%s за получаване на
 count=0
 total_time=0
 
-while [ $(date +%s) -lt $end_time ]; do
+while [[ $(date +%s) -lt $end_time ]]; do
   start_time=$(date +%s.%N)
   eval "$command"
   end_time_command=$(date +%s.%N)
@@ -191,7 +191,7 @@ while [ $(date +%s) -lt $end_time ]; do
   ((count++))
 done
 
-if [ $count -gt 0 ]; then
+if [[ $count -gt 0 ]]; then
   average_time=$(echo "scale=2; ${total_time} / ${count}" | bc) # scale=2 tells bc to format the result to two decimal places
 else
   average_time=0
