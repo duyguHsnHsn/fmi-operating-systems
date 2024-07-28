@@ -55,7 +55,7 @@ find / -uid $(id -u) 2>/dev/null | wc -l
 # a
 find . -type f -size 0 | xargs -I {} rm {}
 # b
-find . -type f -printf "%p|%s\\n" | sort -t "|" -nr -k 2 | head -n 5| awk -F "|" '{print $1} | 'xargs -I {} rm {}
+find . -type f -printf "%p|%s\\n" | sort -t "|" -nr -k 2 | head -n 5| awk -F "|" '{print $1}'
 ````
 
 ### Зад. 4 2017-IN-03 
@@ -114,19 +114,37 @@ if [[ ! -d "${1}" ]]; then
   exit 1
 fi 
 file_count=0
+temp_dir=$(mktemp -d)
 
 while read file; do
   file_count=$(("${file_count}"+1))
-  $( grep -oE '\b[a-zA-Z]+\b' "${file}" | sort | uniq -c | awk '{if ($1 >= 3) {print $2 " " $1 }}' >> word_count.txt )
-  $( cat word_count.txt | awk '{print $1 " " 1}' >> file_count.txt )
+  $( grep -oE '\b[a-zA-Z]+\b' "${file}" | sort | uniq -c | awk '{print $2 " " $1}' >> "${temp_dir}/word_count.txt")
+  $( grep -oE '\b[a-zA-Z]+\b' "${file}" | sort | uniq -c | awk '{print $2}' >> "${temp_dir}/file_count.txt" )
 done < <(find "${1}" -type f 2>/dev/null)
 
-$(rm "word_count.txt")
+$(cat file_count.txt | sort | uniq -c >> "${temp_dir}/overall_count.txt" )
+$(rm "${temp_dir}/file_count.txt")
 
-half=$(("${file_count}"/2))
-echo $( cat file_count.txt | sort -k1 | uniq -c | awk -v c="${half}" '{if ($1 >= c) {print $2 }}' | tail -n 10 )
+limit=$(("${file_count}"/2))
+if [[ "${limit}" -lt 3 ]]; then
+  limit=3
+fi 
 
-$(rm "file_count.txt")
+$(cat overall_count.txt | awk '{if c="${limit}" ($2 >= c) {print $3}}' >> "${temp_dir}/candidates.txt")
+$(rm "${temp_dir}/overall_count.txt")
+
+while read -r word; do
+  sum=$(grep "^$word" "${temp_dir}/word_count.txt" | awk -v s="${sum}"'{s += $2} END {print s}')
+  $(echo "$word $sum" >> "${temp_dir}/results.txt")
+done < candidates.txt
+
+$(rm "${temp_dir}/word_count.txt")
+$(rm "${temp_dir}/candidates.txt")
+
+echo "$( cat "${temp_dir}/results.txt" | sort -k2 -nr | head -n 10 )"
+
+$(rm "${temp_dir}/word_count.txt")
+$(rmdir "${temp_dir}")
 
 exit 0
 
