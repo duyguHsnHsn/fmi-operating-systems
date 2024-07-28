@@ -130,7 +130,7 @@ if [[ "${limit}" -lt 3 ]]; then
   limit=3
 fi 
 
-$(cat overall_count.txt | awk '{if c="${limit}" ($2 >= c) {print $3}}' >> "${temp_dir}/candidates.txt")
+$(cat "${temp_dir}/overall_count.txt" | awk '{if c="${limit}" ($2 >= c) {print $3}}' >> "${temp_dir}/candidates.txt")
 $(rm "${temp_dir}/overall_count.txt")
 
 while read -r word; do
