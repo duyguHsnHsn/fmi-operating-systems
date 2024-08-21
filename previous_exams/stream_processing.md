@@ -134,6 +134,7 @@ $(cat "${temp_dir}/overall_count.txt" | awk -v c="${limit}" '{if ($2 >= c) {prin
 $(rm "${temp_dir}/overall_count.txt")
 
 while read -r word; do
+  sum=0
   sum=$(grep "^$word" "${temp_dir}/word_count.txt" | awk -v s="${sum}"'{s += $2} END {print s}')
   $(echo "$word $sum" >> "${temp_dir}/results.txt")
 done < candidates.txt
