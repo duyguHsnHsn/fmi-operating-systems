@@ -240,7 +240,7 @@ directory="$1"
 temp_file=$(mktemp)
 
 find "$directory" -type f | while read file; do
-  sha256sum "$file" >> "$temp_fil v"
+  sha256sum "$file" >> "$temp_file"
 done
 
 sort "$temp_file" -o "$temp_file" # -o overwrite the existing content 
@@ -318,7 +318,7 @@ target_dir=$2
 
 mkdir -p "$target_dir"
 
-find "${source_dir}" -type f -iname '*.jpg' | while read file; do
+find "${source_dir}" -type f -name '*.jpg' | while read file; do
   mod_date=$(date -r "$file" '+%Y-%m-%d')
   mod_time=$(date -r "$file" '+%H:%M:%S')
   year=$(echo "$mod_date" | cut -d '-' -f1)
@@ -522,7 +522,7 @@ for file in "$@"; do
       continue
     fi
       
-     current_serial=$(grep "; serial" ${file} | awk -F" " '{print $1}' && cat ${file} | grep -v "(\|;\|)" | awk -F" " '{print $7}')
+     current_serial=$(grep "; serial" ${file} | awk -F" " '{print $1}' && cat ${file} | grep -vE "(\|;\|)" | awk -F" " '{print $7}')
 
     if [[ -z "$current_serial" ]]; then
         echo "ERROR: No valid SOA serial number found in $file."
