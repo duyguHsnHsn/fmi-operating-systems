@@ -1287,6 +1287,123 @@ Fuzzer-ът трябва да стартира програмата многок
 подаден на програмата при съответното изпълнение, а статусът на завършване на fuzzer-а да е 42.
 
 ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <signal.h>
+
+// does not test multiple inputs in parallel can be done better with using fork one more time in main? 
+
+int run_test(const char *program, const uint8_t *input, size_t size) {
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        errx(2, "cannot pipe")
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        errx(2, "cannot fork")
+    }
+
+    if (pid == 0) { 
+        close(pipefd[1]);
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[0]);
+
+        int dev_null = open("/dev/null", O_WRONLY);
+        if (dev_null == -1) {
+           errx(2, "cannot open /dev/null")
+        }
+
+        // output of the program go to dev/null
+        dup2(dev_null, STDOUT_FILENO);
+        dup2(dev_null, STDERR_FILENO);
+        close(dev_null);
+
+        execl(program, program, NULL);  
+        errx(2,"cannot execl program");
+    } else {
+        close(pipefd[0]);
+        write(pipefd[1], input, size);
+        close(pipefd[1]);
+
+        int status;
+        waitpid(pid, &status, 0); 
+        // did the program crash
+        if (WIFSIGNALED(status)) { 
+            return WTERMSIG(status); 
+        }
+    }
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        errx(1, "Usage: ./fuzzer <program> <N> <output_file>\n", 45);
+    }
+
+    int N = atoi(argv[2]);
+
+    for (int i = 0; i < N; i++) {
+        int urandom_fd = open("/dev/urandom", O_RDONLY);
+        if (urandom_fd == -1) {
+             errx(2, "cannot open /dev/urandom")
+        }
+
+        uint16_t S;
+        if (read(urandom_fd, &S, sizeof(S)) != sizeof(S)) {
+            close(urandom_fd);
+            errx(2, "cannot read /dev/urandom")
+        }
+
+        S = S % 65536;  // S does not go higher than 2^16
+
+        uint8_t *input = (uint8_t *)malloc(S);
+        if (input == NULL) {
+            close(urandom_fd);
+            errx(2, "cannot malloc")
+        }
+
+        if (read(urandom_fd, input, S) != S) {
+            free(input);
+            close(urandom_fd);
+            errx(3, "cannot read /dev/urandom")
+        }
+        close(urandom_fd);
+
+        int result = run_test(argv[1], input, S);
+
+        if (result) { 
+            int output_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC,  S_IRUSR | S_IWUSR);
+            if (output_fd == -1) {
+                free(input);
+                errx(2, "cannot open output file")
+            }
+            if (write(output_fd, input, S) != S) {
+                close(output_fd);
+                free(input);
+                errx(2, "cannot write to output file")
+            }
+            close(output_fd);
+            free(input);
+            return 42;
+        }
+
+        free(input); 
+    }
+
+    // no err; empty file
+    int output_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC,  S_IRUSR | S_IWUSR);
+    if (output_fd == -1) {
+        errx(2, "cannot open output file")
+    }
+    close(output_fd);
+
+    return 0;
+}
 
 ```
 
