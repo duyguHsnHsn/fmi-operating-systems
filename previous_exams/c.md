@@ -942,27 +942,16 @@ $ ./main f1.bin f2.bin patch.bin
 #include <err.h>
 
 void read_exact(int fd, void *buffer, size_t size) {
-    ssize_t bytes_read;
-    while (size > 0 && (bytes_read = read(fd, buffer, size)) != 0) {
-        if (bytes_read == -1) {
-            errx(1, "Error reading file");
-        }
-        size -= bytes_read;
-        buffer += bytes_read;
-    }
-    if (size > 0) {
-        errx(1, "Unexpected end of file");
+     ssize_t bytes_read = read(fd, buf, count);
+    if (bytes_read == = -1 ){
+        errx(2, "read")
     }
 }
 
 void write_exact(int fd, const void *buffer, size_t size) {
-    ssize_t bytes_written;
-    while (size > 0 && (bytes_written = write(fd, buffer, size)) != 0) {
-        if (bytes_written == -1) {
-            errx(1, "Error writing file");
-        }
-        size -= bytes_written;
-        buffer += bytes_written;
+       ssize_t bytes_written = write(fd, buf, count);
+    if (bytes_written == -1 ){
+        errx(2, "write")
     }
 }
 
@@ -972,17 +961,17 @@ int main(int argc, char *argv[]) {
     }
 
     int fd1 = open(argv[1], O_RDONLY);
-    if (fd1 == 0) {
+    if (fd1 == -1) {
         errx(1, "Error opening %s", argv[1]);
     }
 
     int fd2 = open(argv[2], O_RDONLY);
-    if (fd2 == 0) {
+    if (fd2 == -1) {
         errx(1, "Error opening %s", argv[2]);
     }
 
-    int patch_fd = open(argv[3],  O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR)
-    if (patch_fd == 0) {
+    int patch_fd = open(argv[3],  O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if (patch_fd == -1) {
         err(1, "Error opening %s", argv[3]);
     }
 
