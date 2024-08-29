@@ -1332,6 +1332,91 @@ GDPR вие нямате право да пазите дълго време по
 всички записи. Ако искате да създадете временен файл, вижте mkstemp(3).
 
 ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <string.h>
+
+#define RECORD_SIZE 512
+#define NEXT_OFFSET 0
+#define USER_DATA_OFFSET 8
+#define USER_DATA_SIZE (RECORD_SIZE - USER_DATA_OFFSET)
+
+uint64_t read_next(int fd, off_t offset) {
+    uint64_t next;
+    lseek(fd, offset + NEXT_OFFSET, SEEK_SET);
+    if (read(fd, &next, sizeof(next)) != sizeof(next)) {
+        errx(1, "Error reading next");
+    }
+    return next;
+}
+
+void mark_used_records(int fd, char* used_records, uint64_t index) {
+    while (index != 0) {
+        if (used_records[index]) {
+            break; // if it is used
+        }
+        used_records[index] = 1;
+        off_t offset = index * RECORD_SIZE;
+        index = read_next(fd, offset);
+    }
+}
+
+void zero_out_record(int fd, off_t offset) {
+   char zero_buf[RECORD_SIZE];
+    for (int i = 0; i < RECORD_SIZE; i++) {
+        zero_buf[i] = 0;
+    }
+
+    lseek(fd, offset, SEEK_SET);
+    if (write(fd, zero_buf, RECORD_SIZE) != RECORD_SIZE) {
+        errx(1, "Error writing zeroes");
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        errx(1, "Usage: %s <file>\n", argv[0]);
+    }
+
+    int fd = open(argv[1], O_RDWR);
+    if (fd == -1) {
+       errx(1, "cannot open file");
+    }
+
+    // find size
+    off_t file_size = lseek(fd, 0, SEEK_END);
+    if (file_size == -1) {
+        errx(2, "cannot seek end")
+    }
+
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+       errx(2, "cannot seek start")
+    }
+
+    uint64_t num_records = file_size / RECORD_SIZE;
+
+    char *used_records = calloc(num_records, sizeof(char));
+    if (used_records == NULL) {
+        errx(1, "cannot calloc");
+    }
+
+    mark_used_records(fd, used_records, 0);
+
+    for (uint64_t i = 0; i < num_records; i++) {
+        if (!used_records[i]) {
+            zero_out_record(fd, i * RECORD_SIZE);
+        }
+    }
+
+    free(used_records);
+    close(fd);
+
+    return 0;
+}
+
 ```
 
 ### Зад. 93 2023-IN-01 
