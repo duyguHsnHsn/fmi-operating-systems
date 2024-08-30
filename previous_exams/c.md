@@ -1419,6 +1419,151 @@ int main(int argc, char *argv[]) {
 - Трябва да позволява md5sum-процесите да работят паралелно един спрямо друг
 
 ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <signal.h>
+
+
+void mdsum_file(char* filename) {
+    int mdsum[2];
+
+    if(pipe(mdsum) == -1){
+        errx(2, "cannot pipe for mdsum");
+    }
+
+    pid_t mdsum_pid = fork();
+
+    if(mdsum_pid == -1 ){
+        errx(2, "cannot fork for mdsum");
+    }
+
+    if(mdsum_pid == 0) {
+        close(mdsum[0]);
+
+        dup2(mdsum[1], 1);
+        close(mdsum[1]);
+
+        execlp("md5sum", "md5sum", filename, (char*)NULL);
+        errx(2,"cannot execlp md5sum")
+    }
+
+    close(mdsum[1]);
+
+    char hash_filename[4096];
+	strcpy(hash_filename, filename);
+	strncat(hash_filename, ".hash", 4096 - strlen(hash_filename) - 1);
+
+	int hash_fd = open(hash_filename, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+	if(hash_fd == -1) {
+         err(1, "cannot open %s", hash_filename); 
+    }
+
+    ssize_t read_bytes;
+    char byte;
+    while((read_bytes=read(mdsum[0], &byte, sizeof(byte)) > 0)) {
+        if (byte == ' ') {
+            break;
+        }
+        if(write(hash_fd, &byte, sizeof(byte)) == -1){
+            errx(2,"cannot write to hash file");
+        }
+    }
+    close(mdsum[0]);
+    close(hash_fd);
+
+    int status;
+    wait(&status);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        errx(1, "Usage: ./main <dir>\n", 1);
+    }
+
+    int find[2];
+    if(pipe(find) == 0 ){
+        errx(1,"cannot pipe");
+    }
+
+    pid_t find_pid = fork();
+    if(find_pid == -1) {
+        errx(2,"cannot fork");
+    }
+
+    if(find_pid == 0) {
+        close(find[0]);
+
+        dup2(find[1], 1);
+        close(find[1]);
+
+        execlp("find", "find", argv[1], "-type", "f", "-not", "-name", "*.hash", "-print0", (char*)NULL);
+        errx(2,"cannot execlp find");
+    }
+    close(find[1]);
+
+    ssize_t read_size;
+    char byte;
+    char buffer[4096];
+    int char_index_in_line;
+    int worker_count = 0;
+
+    while((read_size=read(find[0], &byte, sizeof(byte)) > 0)){
+        char_index_in_line++;
+        if (char_index_in_line > 4095) {
+            errx(3,"filename too big to read");
+        }
+
+        buffer[char_index_in_line] = byte;
+
+        if(byte == "\0") {
+            // we will move to next line
+            char_index_in_line = 0;
+
+            pid_t worker = fork();
+            if (worker == -1) {
+                errx(2, "cannot fork worker");   
+            }
+
+            if(worker == 0) {
+                // close the pipe for every child process
+                close(find[0]);
+                mdsum_file(buffer);
+                exit(0);
+            }
+            worker_count++l
+        }
+    }
+    // close the pipe for parent
+    close(find[0]);
+
+    if(read_size == -1) {
+        errx(2, "couldn't read from pipe");
+    }
+
+    while(worker_count) {
+        int status;
+		wait(&status);
+
+		if(WIFEXITED(status)) {
+			if(WEXITSTATUS(status) != 0) {
+				warnx("child exited with status %d", WEXITSTATUS(status));
+			}
+		}else{
+			warnx("child was killed");
+		}
+
+        worker_count--;
+    }
+
+}
+
+```
+
+
 ```
 
 ### Зад. 97 2024-SE-01
