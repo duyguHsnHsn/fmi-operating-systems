@@ -1588,4 +1588,163 @@ unit по отделно.
 невъзможно.
 
 ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+#define DATA_MAGIC 0x0000534f44614c47
+
+
+void read_exact(int fd, void *buf, size_t count) { // void pointer for the buffer -> accept any type of data
+    ssize_t bytes_read = read(fd, buf, count);
+    if (bytes_read == = -1 ){
+        errx(2, "read")
+    }
+}
+
+void write_exact(int fd, const void *buf, size_t count) {
+    ssize_t bytes_written = write(fd, buf, count);
+    if (bytes_written == -1 ){
+        errx(2, "write")
+    }
+}
+
+uint64_t* xor128(uint64_t a[2], uint64_t b[2]) {
+    uint64_t result[2];
+    result[0] = a[0] ^ b[0];
+    result[1] = a[1] ^ b[1];
+    return result;
+}
+
+uint64_t* extract_section(int fd, uint32_t offset) {
+    if (offset == 0 || offset == 1 || offset == 2  || offset == 3 ) { // header
+        return NULL;
+    }
+    // one unit holds 2x uint64_t
+    uint64_t unit[2];
+    lseek(fd, offset * sizeof(unit) , SEEK_SET); 
+    // read 2 units 2x2xuint64 to get all of section
+    uint64_t buffer[4];
+    read_exact(fd, buffer, sizeof(buffer));
+    return buffer;
+}
+
+
+uint64_t* decript_main_section(int fd, uint64_t section[4], uint64_t sectionkey[2], uint64_t absolute_offset) {
+    uint64_t* first_decripted_unit = zor128({section[0], section[1]}, sectionkey);
+    uint64_t* datakey = zor128({section[2], section[3]}, sectionkey);
+
+    // get data section
+    uint64_t relative_offset = first_decripted_unit[0];
+    uint64_t data_units_len = first_decripted_unit[1] - 2; // all_section_units - 2(main includes 2)
+    uint64_t *data = malloc(data_units_len * 2 * sizeof(uint32_t));
+    uint64_t *decripted_data = malloc(data_units_len * 2 * sizeof(uint32_t));
+    lseek(fd, (absolute_offset + relative_offset) * sizeof(unit) , SEEK_SET); 
+    read_exact(fd, data, sizeof(data));
+    for (int i = 0; i < data_units_len * 2; i++){
+        uint64_t* decripted_data_pair = zor128({data[i], data[i+1]}, datakey);
+        decripted_data[i] = decripted_data_pair[0];
+        decripted_data[i+1] = decripted_data_pair[1];
+        i = i + 2;
+    }
+    free(data);
+    return decripted_data;
+}
+
+uint64_t* extract_main_section_data(int fd, uint32_t offset, uint64_t sectionkey[2]) {
+    uint64_t* buffer = extract_section(fd, offset);
+    if (buffer == NULL) {
+        return NULL;
+    }
+    return decript_main_section(fd, buffer, sectionkey, offset);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        errx(1, "Usage: %s <input> <output>\n", argv[0]);
+    }
+
+    int data_fd =open(argv[1], O_RDONLY);
+	if(data_fd == -1) { err(1, "%s", argv[1]); }
+
+    // header
+    uint64_t data_magic;
+    uint32_t cfsb;
+    uint32_t cfsu;
+    uint32_t ofsb;
+    uint32_t ofsu;
+    uint32_t unused1;
+    uint32_t cksum;
+
+    uint64_t sectionkey[2];
+    uint32_t s0, s1, s2, s3;
+
+    read_exact(data_fd, &data_magic, sizeof(data_magic));
+    if (data_magic != DATA_MAGIC) {
+        close(data_fd);
+        errx(2, "Invalid magic number");
+    }
+
+    read_exact(data_fd, &cfsb, sizeof(cfsb));
+    // size of the input file
+    off_t input_size = lseek(data_fd, 0, SEEK_END);
+    if (input_size == -1) {
+        err(2, "Error seeking input file %s", argv[1]);
+    }
+    lseek(data_fd, 0, SEEK_SET);
+
+    if ((uint32_t)input_size != cfsb) {
+        err(2, "Error incorect filesize %s", argv[1]);
+    }
+
+
+    read_exact(data_fd, &cfsu, sizeof(cfsu));
+    read_exact(data_fd, &ofsb, sizeof(ofsb));
+    read_exact(data_fd, &ofsu, sizeof(ofsu));
+    read_exact(data_fd, &unused1, sizeof(unused1));
+    read_exact(data_fd, &cksum, sizeof(cksum));
+
+    read_exact(data_fd, &sectionkey, sizeof(sectionkey));
+    read_exact(data_fd, &s0, sizeof(s0));
+    read_exact(data_fd, &s1, sizeof(s1));
+    read_exact(data_fd, &s2, sizeof(s2));
+    read_exact(data_fd, &s3, sizeof(s3));
+
+    s0_data = extract_main_section_data(data_fd, s0, sectionkey);
+    s1_data = extract_main_section_data(data_fd, s1, sectionkey);
+    s2_data = extract_main_section_data(data_fd, s2, sectionkey);
+    s3_data =extract_main_section_data(data_fd, s3, sectionkey);
+    
+    int output_fd =  open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if (output_fd == -1 ) {
+        errx(1, "cannot open output dir");
+    }
+
+    if(s0_data != NULL) {
+        write_exact(output_fd, s0_data, sizeof(s0_data));
+        free(s0_data);
+    }
+    if(s1_data != NULL) {
+        write_exact(output_fd, s1_data, sizeof(s1_data));
+        free(s1_data);
+    }
+    if(s2_data != NULL) {
+        write_exact(output_fd, s2_data, sizeof(s2_data));
+        free(s2_data);
+    }
+    if(s3_data != NULL) {
+        write_exact(output_fd, s3_data, sizeof(s3_data));
+        free(s3_data);
+    }
+
+    // before end fix sizing of the output dir
+
+    return 0;
+}
+
 ```
