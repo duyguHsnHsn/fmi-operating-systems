@@ -1955,9 +1955,91 @@ echo foo -m pesho
 максимум два низа като параметри, като изчаква изпълнението да приключи, преди да започне ново
 изпълнение.
 ![example](img6.png)
- 
 
  ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+void execute_command(const char *command){
+    char first_input[4];
+    char second_input[4];
+    char byte;
+    int first_inx, second_inx;
+    while((read(0,&byte, sizeof(byte)))){
+        if(first_input[first_inx] != "\0"){
+            if(byte == " " || byte == "\n") {
+                first_input[first_inx]="\0"
+            } else {
+                first_input[first_inx] = byte;
+                first_inx++;
+            }
+        } else if(second_input[second_inx] != "\0"){
+            if(byte == " " || byte == "\n") {
+                second_input[second_inx]="\0"
+            } else {
+                second_input[second_inx] = byte;
+                second_inx++;
+            }
+        }
+        else {
+            first_inx = 0;
+            second_inx = 0;
+            int executed[2];
+
+            if(pipe(executed) == -1){
+                errx(2, "cannot pipe");
+            }
+
+            pid_t executer_pid = fork();
+            if(executer_pid == -1){
+                errx(2,"cannot fork");
+            }
+
+            if (executer_pid == 0 ){
+                close(executed[0]);
+
+                dup2(executed[1], 1);
+                close(executed[1]);
+    
+                execlp(command, command, first_input, second_input, (char *)NULL);
+                errx(2, "cannot execlp command");
+            }
+
+            close(executed[1]);
+            
+            char to_print;
+            while((read(executed[0], &to_print, sizeof(to_print))) > 0 ){
+                if(write(1, &to_print, sizeof(to_print)) < 1) {
+                    errx(2,"cannot write to stdout");
+                }
+            }
+            close(executed[0]);
+        }
+    }
+}
+
+
+int main(int argc, char *argv[]) {
+    if (argc > 2) {
+        errx(1, "wrong usage");
+    }
+    if(argc == 1) {
+        execute_command("echo")
+    }
+    else {
+        if(strlen(argv[1]) > 4 ){
+            errx(1, "command is too long")
+        }
+        execute_command(argv[1];)
+    }
+    return 0;
+}
 
  ```
 
@@ -2014,28 +2096,41 @@ int main(int argc, char *argv[]) {
     if(fd2 == -1) {
 		err(1, "%s", argv[2]);
 	}
-
+ß
     uint16_t two_bytes; // the byte size should be doubled from the previous operation; this wouldn't break
+    uint8_t result_byte;
+    int bits[16];
+    int bit_count = 0;
     while((read(fd1,&two_bytes,sizeof(two_bytes))) > 0 ) {
-        int* bits = read_bits(two_bytes);
-        int result[8];
-        int result_inx = 7;
+        iread_bits(two_bytes, bits);
         for(int i = 15; i > 0;) {
+            uint8_t result_bit;
             if(bits[i] == 0 && bits[i-1] == 1) {
-                result[result_inx] = 1;
-                result_inx--;
+                result_bit = 1;
             } else if(bits[i] == 1 && bits[i-1] == 0) {
-                result[result_inx] = 0;
-                result_inx--;
+                 result_bit = 0;
             } else {
                 errx(3, "the file bits do not match the format");
             }
+
+            // shift the result bit into correct position in the result byte
+            result_byte = (result_byte << 1) | result_bit;
+            bit_count++;
+
+            if(bit_count == 8 ) {
+                if((write(fd2, result_byte, sizeof(result_byte))) < 0 ){
+                    errx(2, "cannot open output file to write result");
+                }
+                bit_count = 0;
+                result_byte = 0;
+            }
             i = i - 2;
         }
-        if((write(fd2, result, sizeof(result))) < 0 ){
-            errx(2, "cannot open output file to write result");
-        }
     }
+
+    close(fd1);
+    close(fd2);
+
     return 0;
 }
 
