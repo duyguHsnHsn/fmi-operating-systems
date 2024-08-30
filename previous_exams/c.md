@@ -1973,18 +1973,18 @@ void execute_command(const char *command){
     int first_inx, second_inx;
     while((read(0,&byte, sizeof(byte)))){
         if(first_input[first_inx] != "\0"){
+            first_inx++;
             if(byte == " " || byte == "\n") {
                 first_input[first_inx]="\0"
             } else {
                 first_input[first_inx] = byte;
-                first_inx++;
             }
         } else if(second_input[second_inx] != "\0"){
+            second_inx++;
             if(byte == " " || byte == "\n") {
                 second_input[second_inx]="\0"
             } else {
                 second_input[second_inx] = byte;
-                second_inx++;
             }
         }
         else {
@@ -2020,6 +2020,7 @@ void execute_command(const char *command){
                 }
             }
             close(executed[0]);
+            wait(NULL); 
         }
     }
 }
