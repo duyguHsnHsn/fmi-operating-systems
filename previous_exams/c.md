@@ -1791,7 +1791,7 @@ uint64_t* decript_main_section(int fd, uint64_t section[4], uint64_t sectionkey[
     uint64_t *decripted_data = malloc(data_units_len * 2 * sizeof(uint32_t));
     lseek(fd, (absolute_offset + relative_offset) * sizeof(unit) , SEEK_SET); 
     read_exact(fd, data, sizeof(data));
-    for (int i = 0; i < data_units_len * 2; i++){
+    for (int i = 0; i < data_units_len * 2;){
         uint64_t* decripted_data_pair = zor128({data[i], data[i+1]}, datakey);
         decripted_data[i] = decripted_data_pair[0];
         decripted_data[i+1] = decripted_data_pair[1];
@@ -1889,6 +1889,153 @@ int main(int argc, char *argv[]) {
 
     // before end fix sizing of the output dir
 
+    return 0;
+}
+
+```
+
+### Зад. 107 2021-SE-01
+
+Ваши колеги - асистенти по ОС се оплакват, че студентите упорито ползват командата
+sudo , въпреки че им е обяснено да не я ползват. Вашата задача е да подготвите фалшиво sudo, което:
+- добавя ред в текстови файл foo.log с командата, която потребителят се е опитал да изпълни
+във формат ДАТА ПОТРЕБИТЕЛ ДАННИ , където:
+
+                - Д А Т А е във формат YYYY-MM-DD HH:MM:SS.UUUUUU (UUUUUU са микросекунди)
+                - ПОТРЕБИТЕЛ е login name (username) на потребителя
+                - ДАННИ е всичко, което потребителят е написал, например . /main ls -l /root
+                - горните полета са разделени с интервал
+                - пример: 2021-05-10 14:38:17.584344 s99999 ./main ls -l /root
+- заключва акаунта, който е изпълнил програмата
+- приключва изпълнението на всички процеси, стартирани от този потребител
+
+За да може да изпълни тези неща, фалшивото sudo ще има нужда от root права, а в същото време
+трябва да знае кой акаунт изпълнява командата. Традиционно това може да се реши със SUID, което
+обаче не важи за shell скриптове. За да заобиколите този проблем, напишете програма на C(main),
+която за заключването на акаунта и терминирането на процесите извиква външни shell команди през
+pipe() .
+
+
+Полезни man страници:
+- gettimeofay(2)
+- localtime(3)
+- strftime(3)
+- getuid(2)
+- getpwuid(3)
+- passwd(1)
+
+Опишете в doc.txt как бихте настроили компилираната вече програма така, че студентите да ползват
+нея, вместо оригиналното sudo.
+Естествено, по време на разработка на програмата можете да я тествате само с вашият акаунт и нямате
+root права. За да може все пак да тествате, подменете в кода финалните команди, които програмата
+изпълнява (тези, които наистина изискват root права), като им добавите едно echo . Например, ако
+трябва да изпълните командата
+
+foo -m pesho
+
+вместо това в кода ви трябва да е дефинирано изпълнение на
+
+echo foo -m pesho
+
+```c
+
+```
+
+### Зад. 101 2017-IN-02 
+
+Напишете програма на C, която приема незадължителен параметър – име на команда.
+Ако не е зададена команда като параметър, да се ползва командата echo. Максималната допустима
+дължина на командата е 4 знака.
+Програмата чете низове (с максимална дължина 4 знака) от стандартния си вход, разделени с интервали (0x20) или знак за нов ред (0x0A). Ако някой низ е с
+дължина по-голяма от 4 знака, то програмата да терминира със съобщение за грешка.
+
+
+Подадените на стандартния вход низове програмата трябва да третира като множество от параметри
+за дефинираната команда. Програмата ви трябва да изпълни командата колкото пъти е необходимо с
+максимум два низа като параметри, като изчаква изпълнението да приключи, преди да започне ново
+изпълнение.
+![example](img6.png)
+ 
+
+ ```c
+
+ ```
+
+ ### Зад. 89 2021-SE-02 
+
+Вашите колеги от съседната лаборатория са написали програма на C, която може да обработва подаден входен двоичен файл и на негова база генерира изходен
+двоичен файл. Програмата работи като encoder, който имплементира вариант на Manchester code, т.е.:
+- за всеки входен бит 1 извежда битовете 1 0 , и
+- за всеки входен бит 0 извежда битовете 0 1
+
+Например следните 8 бита вход:
+
+1 0 1 1 0 1 1 0 == 0xB6
+
+по описания алгоритъм дават следните 16 бита изход
+
+1 0 0 1 1 0 1 0 0 1 1 0 1 0 0 1 == 0x9A69
+
+Напишете програма на C, която извършва обратния процес, т.е., декодира файлове, създадени от горната програма.
+
+Примерно извикване:
+
+// $ ./main input.bin output.bin
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+void read_bits(uint16_t num, int bits[16]);
+
+void read_bits(uint16_t num, int bits[16]) {
+    for(int i = 15; i > 0; i--){
+        bit[15 - i] = (number >> i) & 1;
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3 ) {
+        errx(1, "wrong usage");
+    }
+
+    fd1 = open(argv[1], O_RDONLY);
+    if(fd1 == -1 ) {
+        errx(1, "cannot read");
+    }
+
+    int fd2 = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if(fd2 == -1) {
+		err(1, "%s", argv[2]);
+	}
+
+    uint16_t two_bytes; // the byte size should be doubled from the previous operation; this wouldn't break
+    while((read(fd1,&two_bytes,sizeof(two_bytes))) > 0 ) {
+        int* bits = read_bits(two_bytes);
+        int result[8];
+        int result_inx = 7;
+        for(int i = 15; i > 0;) {
+            if(bits[i] == 0 && bits[i-1] == 1) {
+                result[result_inx] = 1;
+                result_inx--;
+            } else if(bits[i] == 1 && bits[i-1] == 0) {
+                result[result_inx] = 0;
+                result_inx--;
+            } else {
+                errx(3, "the file bits do not match the format");
+            }
+            i = i - 2;
+        }
+        if((write(fd2, result, sizeof(result))) < 0 ){
+            errx(2, "cannot open output file to write result");
+        }
+    }
     return 0;
 }
 
