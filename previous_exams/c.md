@@ -1964,31 +1964,40 @@ echo foo -m pesho
 #include <errno.h>
 
 void execute_command(const char *command){
-    char first_input[4];
-    char second_input[4];
+    char first_input[4] = {0};
+    char second_input[4] = {0};
     char byte;
-    int first_inx, second_inx;
+    int inx = 0;
+    int second_inx = 0;
+    int try_two_args = 0;
+    int ready_1 = 0;
+    int ready_2 = 0;
+
     while((read(0,&byte, sizeof(byte)))){
-        if(first_input[first_inx] != "\0"){
-            first_inx++;
-            if (first_inx >= 4 ){
+        if(inx == 0 || first_input[inx -1] != "\0"){
+            if (inx + 1 >= 4 ){
                 errx(3, "too long string for input");
             }
             if(byte == " " || byte == "\n") {
-                first_input[first_inx]="\0"
+                first_input[inx]="\0";
+                ready1 = 1;
             } else {
-                first_input[first_inx] = byte;
+                first_input[inx] = byte;
             }
-        } else if(second_input[second_inx] != "\0"){
+            inx++;
+        } else if( byte != " " || byte == !"\n") {
+            second_input[second_inx] = byte;
             second_inx++;
-            if(byte == " " || byte == "\n") {
-                second_input[second_inx]="\0"
-            } else {
-                second_input[second_inx] = byte;
+            if (second_inx >= 4 ){
+                errx(3, "too long string for input");
             }
+        } else if (byte == " " || byte == "\n") {
+            second_input[second_inx]="\0"; // if no input 2 then second_input will be just "\0"
+            ready2 = 1;
         }
-        else {
-            first_inx = 0;
+
+        if(ready1 == 1 && ready2 == 1){
+            inx = 0;
             second_inx = 0;
             int executed[2];
 
@@ -2007,7 +2016,7 @@ void execute_command(const char *command){
                 dup2(executed[1], 1);
                 close(executed[1]);
     
-                execlp(command, command, first_input, second_input, (char *)NULL);
+                execlp(command, command, first_input, second_input,  (char *)NULL);
                 errx(2, "cannot execlp command");
             }
 
