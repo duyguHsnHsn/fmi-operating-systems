@@ -1323,7 +1323,7 @@ int run_test(const char *program, const uint8_t *input, size_t size) {
         dup2(dev_null, STDERR_FILENO);
         close(dev_null);
 
-        execl(program, program, NULL);  
+        execl(program, program, NULL);  // since we write the input from the parent to the childs stdin this execlp will use that stdin
         errx(2,"cannot execl program");
     } else {
         close(pipefd[0]);
