@@ -2106,7 +2106,7 @@ int main(int argc, char *argv[]) {
     if(fd2 == -1) {
 		err(1, "%s", argv[2]);
 	}
-ß
+
     uint16_t two_bytes; // the byte size should be doubled from the previous operation; this wouldn't break
     uint8_t result_byte;
     int bits[16];
@@ -2143,5 +2143,306 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+```
+
+### Зад. 98 2024-IN-01
+
+Вашите колеги от съседната лаборатория използват специализирана система за съхранение на данни (СССД), която работи основно с два вида обекти – `volume`-и (текущо използвана версия на блоково устройство) и `snapshot`-и (стара версия на даден обект). Всеки обект има уникален идентификатор `id ∈ ℕ₀`, като стойност 0 е запазена. Текущото състояние на СССД е описано в двоичен файл, който се състои от три секции в следния ред:
+
+#### Секция Header
+Състои се от четири `uint16_t` променливи:
+- **magic** – всички служебни файлове на СССД имат магическа стойност `0x6963`;
+- **ver** – версия и формат на файла, в тази задача разглеждаме файлове с формат `0x6e73`;
+- **cp** – брой на елементите в `preamble` секцията;
+- **co** – брой на елементите в `objects` секцията;
+
+#### Секция Preamble
+Съдържа елементи със следната структура:
+- **v1**, `uint16_t`;
+- **v2**, `uint16_t`;
+- **v3**, `uint32_t`;
+- `preamble` елементите не се използват пряко в задачата;
+
+#### Секция Objects
+Съдържа елементи със следната структура, които описват обекти от СССД:
+- **ctime**, `uint32_t` – време на създаване на обекта (Unix/Epoch time);
+- **opt**, `uint16_t` – съдържа флагове, описващи различни характеристики на обекта; двата най-старши бита описват вида на обекта, като `00` се използват за `volume`, а `10` – за `snapshot`;
+- **parent_id**, `uint16_t` – идентификатор на предхождащ обект (родител, предишната версия на обекта), като ако обектът няма родител, стойността на `parent_id` е 0;
+- **size**, `uint32_t` – размер на обекта в байтове;
+- **seize**, `uint32_t` – действително използвани байтове за съхранение на обекта, `seize ∈ [0, size]`.
+
+#### Забележки:
+- Съотношението на `seize` към `size` на даден обект ще наричаме **коефициент на запълване**;
+- Отместването на елемент от `objects` секцията спрямо началото й (в брой елементи) дефинира `id` на обекта, описан от елемента.
+
+Съществува система за управление на СССД, която спрямо дефинирани критерии автоматично създава дневни `snapshot`-и на някои `volume`-и. Дефиницията за **дневен snapshot** е такъв `snapshot`, който е на време-разстояние един ден плюс-минус 10 минути от родителя си. Например, един `volume` и три негови `snapshot`-а изглеждат по следния начин:
+
+#### Задача
+Напишете програма, която приема параметър – име на файл в описания формат. Програмата трябва да пресмята и извежда на `STDOUT` колко е претеглената по размер на обекта средна стойност на коефициента на запълване за дневните `snapshot`-и. Колегите ви искат програмата да минимизира броя на операциите с плаваща запетая (floating-point operations), за да не се натрупва грешка.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+#define EXPECTED_MAGIC 0x6963
+#define EXPECTED_VER 0x6963
+
+void read_exact(int fd, void *buff, size_t count);
+int check_msb_bits(uint16_t value, uint8_t num_bits, uint16_t expected);
+void write_exact(int fd, void *buff, size_t count);
+
+
+void read_exact(int fd, void *buff, size_t count){
+    ssize_t bytes_read = read(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot read file");
+    }
+}
+
+void write_exact(int fd,const void *buff, size_t count){
+    ssize_t bytes_written = write(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot write file");
+    }
+}
+
+int check_msb_bits(uint16_t value, uint8_t num_bits, uint16_t expected){
+    uint16_t mask = ((1U << num_bits) - 1) << (16 - num_bits); // mask for last num_bits
+    uint16_t msb_bits = (value & mask) >> (16 - num_bits); // isolate and move MSB
+
+    return msb_bits == expected;
+}
+
+int main(int argc, char *argv[]) {
+	if (argc != 2 ) {
+        errx(1, "wrong usage");
+	}
+
+    fd = open(argv[1], O_RDONLY)
+    if (fd == -1){
+       errx(1, "cannot  open provided file") 
+    }
+
+    // header values
+    uint16_t magic;
+    uint16_t ver;
+    uint16_t cp;
+    uint16_t co;
+
+    read_exact(fd, &magic, sizeof(magic));
+    if (magic != EXPECTED_MAGIC) {
+        errx(2, "file starts with unexpected magic");
+    }
+    read_exact(fd, &ver, sizeof(ver));
+    if (ver != EXPECTED_VER) {
+        errx(2, "file has unexpected version");
+    }
+    read_exact(fd, &cp, sizeof(cp));
+    if ( cp != 3 ) {
+        errx(2, "unexpected cp value");
+    }
+    read_exact(fd, &co, sizeof(co));
+    if (co != 5 ) {
+        errx(2, "unexpected co value");
+    }
+
+    // skip preamble values
+    for (uint16_t i = 0; i < cp; i++){
+            // preamble values
+            //uint16_t v1;
+            //uint16_t v2;
+            //uint32_t v3;
+
+            //read_exact(fd, &v1, sizeof(v1));
+            //read_exact(fd, &v2, sizeof(v2));
+            //read_exact(fd, &v3, sizeof(v3));
+        lseek(fd, 2 * sizeof(uint32_t), SEEK_CUR);
+    }
+
+    uint64_t overall_size;
+    uint64_t overall_ssize;
+    uint16_t parents_ids[100]; // or use malloc
+    uint32_t parents_time[100];
+
+    for (uint16_t j = 0; j < co; j++){
+        // objects values
+        uint32_t ctime;
+        uint16_t opt;
+        uint16_t parent_id;
+        uint32_t size;
+        uint32_t ssize;
+        int snapshot = 0;
+
+        read_exact(fd, &ctime, sizeof(ctime));
+        parents_time[j] = ctime;
+        read_exact(fd, &opt, sizeof(opt));
+        if (check_msb_bits(opt, 2, 0b10) == 1) {
+            snapshot = 1;
+        }
+        read_exact(fd, &parent_id, sizeof(parent_id));
+        parents_ids[j] = parent_id;
+        read_exact(fd, &size, sizeof(size));
+        read_exact(fd, &ssize, sizeof(ssize));
+        if (ssize > size){
+            errx(3, "ssize cannot be larger than size");
+        }
+
+        if (snapshot == 1 && parent_id < co) {
+            time_t parent_ctime;
+            for (int i = 0; i < 100; i++){
+                if (parents_ids[i] == parent_id){
+                    parent_ctime = parents_ctime[i];
+                    break;
+                }
+            }
+            double time_diff = difftime(snapshot_time, parent_time);
+            if(time_diff >= 84600 && time_diff <= 87000) { //84600 seconds == 1 day
+                  overall_size += size;
+                  overall_ssize += ssize;
+            }
+        }
+    }
+
+    uint64_t result = overall_size / overall_ssize; 
+    write_exact(1, &result, sizeof(result));
+
+    close(fd);
+
+    return 0;
+}
+
+```
+### Зад. 93 2022-IN-01
+
+Вашите колеги от съседната лаборатория работят със специализирана система Hoge, която съхранява данните си в binary файлове. За съжаление обаче им се налага да работят с две различни версии на системата (стара и нова) и разбира се, те ползват различни файлови формати.
+
+Вашата задача е да напишете програма на C (./main list.bin data.bin out.bin), която конвертира файлове с данни от стария (list.bin + data.bin) в новия (out.bin) формат.
+
+Всички файлове се състоят от две секции – 8 байтов хедър и данни. Структурата на хедъра е:
+
+- `uint16_t magic` – магическа стойност 0x5A4D, която дефинира, че файлът е от системата Hoge и следва тази спецификация;
+- `uint16_t filetype` – дефинира какъв тип файл е това, с допустими стойности 1 за list.bin, 2 за data.bin и 3 за out.bin;
+- `uint32_t count` – дефинира броя на елементите в секцията с данни на файла.
+
+Секцията за данни на всички файлове съдържа елементи – цели числа без знак, от съответните типове:
+
+- `list.bin` – `uint16_t`;
+- `data.bin` – `uint32_t`;
+- `out.bin` – `uint64_t`.
+
+Във файлове `data.bin` и `out.bin` елементи, чиято стойност е 0, са валидни елементи, но се игнорират от системата Hoge (тяхното наличие във файла не пречи на работата на системата).
+
+Всеки елемент в секцията за данни на `list.bin` има две характеристики – позиция и стойност, като позиция е отместването на съответния елемент, докато стойност е неговата стойност. Тези две числа семантично дефинират отмествания във файловете с данни:
+
+- позиция дефинира отместване в `data.bin`;
+- стойност дефинира отместване в `out.bin`.
+
+На базата на тези числови характеристики елементите на `list.bin` дефинират правила от вида: “елементът на отместване позиция в `data.bin` трябва да отиде на отместване стойност в `out.bin`”.
+
+_Забележка: Всички отмествания са спрямо N0 в брой елементи._
+
+Програмата трябва да интерретира по ред дефинираните правила и на тяхна база да генерира изходния файл.
+
+Обърнете внимание на проверките, обработката за грешки и съобщенията към потребителя – искаме програмата да бъде удобен инструмент.
+
+_Забележка: Не е гарантирано, че разполагате с достатъчно памет, в която да заредите всички елементи на който и да от файловете._
+
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+#define EXPECTED_MAGIC = 0x5A4D
+
+void read_exact(int fd, void *buff, size_t count);
+void write_exact(int fd, void *buff, size_t count);
+uint32_t read_header_and_get_data_count(int fd, int file_num);
+
+
+void read_exact(int fd, void *buff, size_t count){
+    ssize_t bytes_read = read(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot read file");
+    }
+}
+
+void write_exact(int fd,const void *buff, size_t count){
+    ssize_t bytes_written = write(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot write file");
+    }
+}
+
+uint32_t read_header_and_get_data_count(int fd, uint16_t file_num){
+    uint16_t magic;
+    read_exact(fd, &magic, sizeof(magic));
+    if ( magic != EXPECTED_MAGIC ){
+        errx(2, "magic mismatch");
+    }
+    uint16_t filetype;
+    read_exact(fd, &filetype, sizeof(filetype));
+    if (filetype != file_num ){
+        errx(2, "filetype mismatch");
+    }
+    uint32_t count;
+    read_exact(fd, &count, sizeof(count));
+    return count;
+}
+
+int main(int argc, char *argv[]) {
+	if (argc != 4 ) {
+        errx(1, "wrong usage");
+	}
+
+    fd1 = open(argv[1], O_RDONLY)
+    if (fd1 == -1){
+       errx(1, "cannot  open provided file") 
+    }
+
+    fd2 = open(argv[2], O_RDONLY)
+    if (fd2 == -1){
+       errx(1, "cannot  open provided file") 
+    }
+
+    fd3 = open(argv[3], O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd1 == -1){
+       errx(1, "cannot  open provided file") 
+    }
+
+    input_count = read_header_and_get_data_count(fd1, 1);
+    data_count = read_header_and_get_data_count(fd2, 2);
+    output_count = read_header_and_get_data_count(fd3, 3);
+
+    for (uint32_t i = 0; i < input_count; i++){
+        off_t offset = lseek(fd1, 0, SEEK_CUR)
+        uint16_t value;
+        read_exact(fd1, &value, sizeof(value));
+        lseek(fd2, offset, SEEK_SET);
+        uint32_t value_to_read;
+        read_exact(fd2, &value_to_read, sizeof(value_to_read));
+        lseek(fd3,value, SEEK_SET);
+        uint64_t value_to_write = (uint64_t)value_to_read;
+        write_exact(fd3, &value_to_write, sizeof(value_to_write));
+    }
+
+    close(fd1);
+    close(fd2);
+    close(fd3);
+}
+
+
 
 ```
