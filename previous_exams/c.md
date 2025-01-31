@@ -2418,7 +2418,7 @@ int main(int argc, char *argv[]) {
     }
 
     fd3 = open(argv[3], O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
-    if (fd1 == -1){
+    if (fd3 == -1){
        errx(1, "cannot  open provided file") 
     }
 
@@ -2442,7 +2442,195 @@ int main(int argc, char *argv[]) {
     close(fd2);
     close(fd3);
 }
+```
 
+
+### Зад. 87 2020-IN-01 
+Напишете програма на С, която приема три параметъра – имена на двоични файлове.**
+
+_Примерно извикване:_
+
+**$ ./main patch.bin f1.bin f2.bin**
+
+Файловете patch.bin и f1.bin съществуват, и на тяхна база програмата трябва да създаде f2.bin.
+
+Файлът patch.bin се състои от две секции –16 байтов хедър и данни. На базата на хедъра програ­
+мата трябва да може да интерпретира съдържанието на файла. Структурата на хедъра е:
+
+-  uint32_t, magic – магическа стойност 0xEFBEADDE, която дефинира, че файлът следва вази
+
+спецификация
+
+-  uint8_t, header version – версия на хедъра, с единствена допустима стойност за момента 0x01,
+
+която дефинира останалите байтове от хедъра както следва:
+– uint8_t, data version – версия (описание) на използваните структури в секцията за данни
+
+на файла
+
+– uint16_t, count – брой записи в секцията за данни
+– uint32_t, reserved 1 – не се използва
+– uint32_t, reserved 2 – не се използва
+
+Възможни структури в секцията за данни на файла спрямо data version:
+
+-  при версия 0x00
+– uint16_t, offset
+– uint8_t, original byte
+– uint8_t, new byte
+
+-  при версия 0x01
+– uint32_t, offset
+– uint16_t, original word
+– uint16_t, new word
+
+-  _забележка: и при двете описани версии_ _offset е отместване в брой елементи спрямо началото_
+
+на файла
+
+Двоичните файлове f1.bin и f2.bin се третират като състоящи се от елементи спрямо data version
+в patch.bin.
+
+Програмата да създава файла f2.bin като копие на файла f1.bin, но с отразени промени на базата
+на файла patch.bin, при следния алгоритъм:
+
+-  за всяка наредена тройка от секцията за данни на patch.bin, ако на съответният _offset в_
+
+оригиналния файл f1.bin е записан елементът _original byte/word, в изходният файл се за­
+писва _new byte/word. Ако не е записан такъв елемент или той не съществува, програмата да
+прекратява изпълнението си по подходящ начин;
+
+-  всички останали елементи се копират директно.
+
+Наредените тройки в секцията за данни на файла patch.bin да се обработват последователно.
+Обърнете внимание на обработката за грешки и съобщенията към потребителя – искаме програмата
+да бъде удобен и валиден инструмент.
+
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+#define EXPECTED_MAGIC = 0xEFBEADDE
+#define EXPECTED_HEADER_VERSION = 0x01
+
+void read_exact(int fd, void *buff, size_t count);
+void write_exact(int fd, void *buff, size_t count);
+
+void read_exact(int fd, void *buff, size_t count){
+    ssize_t bytes_read = read(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot read file");
+    }
+}
+
+void write_exact(int fd,const void *buff, size_t count){
+    ssize_t bytes_written = write(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot write file");
+    }
+}
+
+int main(int argc, char *argv[]) {
+	if (argc != 4 ) {
+        errx(1, "wrong usage");
+	}
+
+    fd1 = open(argv[1], O_RDONLY)
+    if (fd1 == -1){
+       errx(1, "cannot  open provided file") 
+    }
+
+    fd2 = open(argv[2], O_RDONLY)
+    if (fd2 == -1){
+       errx(1, "cannot  open provided file") 
+    }
+
+    fd3 = open(argv[3], O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if (fd3 == -1){
+       errx(1, "cannot  open provided file") 
+    }
+
+    uint16_t magic;
+    read_exact(fd1, &magic, sizeof(magic));
+    if ( magic != EXPECTED_MAGIC ){
+        errx(2, "magic mismatch");
+    }
+
+    uint8_t header_version;
+    read_exact(fd1, &header_version, sizeof(header_version));
+    if (header_version != EXPECTED_HEADER_VERSION ) {
+        errx(2, "version mismatch");
+    }
+
+    uint8_t data_version;
+    read_exact(fd1, &data_version, sizeof(data_version));
+    if ( data_version != 0x00 && data_version != 0x01 ){
+        errx(2, "unsuported data version");
+    }
+  
+    uint16_t count;
+    read_exact(fd1, &count, sizeof(count));
+    
+    // skip the two unneded fields
+    lseek(fd1, 2 * sizeof(uint32_t), SEEK_CUR);
+
+    // copy all previous content to output file
+    char buffer[4096];
+    ssize_t read_bytes, written_bytes;
+    while ((read_bytes = read(fd2, buffer, sizeof(buffer))) > 0){
+        write_exact(fd3, buffer, sizeof(buffer)); // buffer with no & since it is an array (already a ref)
+    }
+
+    if (read_bytes == -1) {
+        errx(3, "cannot read from second file");
+    }
+
+    // overwrite needed values
+    for (uint16_t t =0;i < count; i++) {
+        if(data_version == 0x00) {
+            uint16_t offset;
+            read_exact(fd, &offset, sizeof(offset));
+            uint8_t org_byte;
+            read_exact(fd, &org_byte, sizeof(org_byte));
+            lseek(fd2, offset, SEEK_SET);
+            uint8_t byte_from_f2;
+            read_exact(fd2, &byte_from_f2, sizeof(byte_from_f2));
+            if ( byte_from_f2 == org_byte) {
+                uint8_t new_byte;
+                read_exact(fd1, &new_byte, sizeof(new_byte));
+                lseek(fd3, offset, SEEK_SET);
+                write_exact(fd3, &new_byte, sizeof(new_byte));
+            }
+        }
+        else {
+            uint32_t offset;
+            read_exact(fd, &offset, sizeof(offset));
+            uint16_t org_byte;
+            read_exact(fd, &org_byte, sizeof(org_byte));
+            lseek(fd2, offset, SEEK_SET);
+            uint16_t byte_from_f2;
+            read_exact(fd2, &byte_from_f2, sizeof(byte_from_f2));
+            if ( byte_from_f2 == org_byte) {
+                uint16_t new_byte;
+                read_exact(fd1, &new_byte, sizeof(new_byte));
+                lseek(fd3, offset, SEEK_SET);
+                write_exact(fd3, &new_byte, sizeof(new_byte));
+            }
+        }
+    }
+    close(fd1);
+    close(fd2);
+    close(fd3);
+}
+```
 
 
 ```
+
