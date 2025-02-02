@@ -538,6 +538,7 @@ int main(int argc, char *argv[]) {
 #include <errno.h>
 
 #define BUFFER_SIZE 4096
+#define MAX_NUM_PROCESSES 100
 
 void terminate_all(pid_t *pids, int count) {
     for (int i = 0; i < count; i++) {
@@ -552,9 +553,10 @@ int main(int argc, char *argv[]) {
         errx(26, "Usage: %s <command1> <command2> ...\n", argv[0]);
     }
 
+    // here we should use malloc instead
     int num_commands = argc - 1;
-    pid_t pids[num_commands];
-    int pipes[num_commands][2];
+    pid_t pids[MAX_NUM_PROCESSES];
+    int pipes[MAX_NUM_PROCESSES][2];
     int found = 0;
 
     for (int i = 0; i < num_commands; i++) {
@@ -1451,7 +1453,8 @@ void mdsum_file(char* filename) {
         errx(2,"cannot execlp md5sum")
     }
 
-    close(mdsum[1]);
+    cl
+    ose(mdsum[1]);
 
     char hash_filename[4096];
 	strcpy(hash_filename, filename);
@@ -2060,17 +2063,23 @@ int main(int argc, char *argv[]) {
 - за всеки входен бит 1 извежда битовете 1 0 , и
 - за всеки входен бит 0 извежда битовете 0 1
 
+
 Например следните 8 бита вход:
 
 1 0 1 1 0 1 1 0 == 0xB6
 
+
 по описания алгоритъм дават следните 16 бита изход
+
 
 1 0 0 1 1 0 1 0 0 1 1 0 1 0 0 1 == 0x9A69
 
+
 Напишете програма на C, която извършва обратния процес, т.е., декодира файлове, създадени от горната програма.
 
+
 Примерно извикване:
+
 
 // $ ./main input.bin output.bin
 
@@ -2178,7 +2187,7 @@ int main(int argc, char *argv[]) {
 
 Съществува система за управление на СССД, която спрямо дефинирани критерии автоматично създава дневни `snapshot`-и на някои `volume`-и. Дефиницията за **дневен snapshot** е такъв `snapshot`, който е на време-разстояние един ден плюс-минус 10 минути от родителя си. Например, един `volume` и три негови `snapshot`-а изглеждат по следния начин:
 
-#### Задача
+#### Задачаs
 Напишете програма, която приема параметър – име на файл в описания формат. Програмата трябва да пресмята и извежда на `STDOUT` колко е претеглената по размер на обекта средна стойност на коефициента на запълване за дневните `snapshot`-и. Колегите ви искат програмата да минимизира броя на операциите с плаваща запетая (floating-point operations), за да не се натрупва грешка.
 
 ```c
@@ -2263,7 +2272,7 @@ int main(int argc, char *argv[]) {
             //read_exact(fd, &v1, sizeof(v1));
             //read_exact(fd, &v2, sizeof(v2));
             //read_exact(fd, &v3, sizeof(v3));
-        lseek(fd, 2 * sizeof(uint32_t), SEEK_CUR);
+        lseek(fd, sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint32_t), SEEK_CUR);
     }
 
     uint64_t overall_size;
@@ -2409,17 +2418,17 @@ int main(int argc, char *argv[]) {
 
     fd1 = open(argv[1], O_RDONLY)
     if (fd1 == -1){
-       errx(1, "cannot  open provided file") 
+       errx(1, "cannot  open provided file");
     }
 
     fd2 = open(argv[2], O_RDONLY)
     if (fd2 == -1){
-       errx(1, "cannot  open provided file") 
+       errx(1, "cannot  open provided file");
     }
 
     fd3 = open(argv[3], O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
     if (fd3 == -1){
-       errx(1, "cannot  open provided file") 
+       errx(1, "cannot  open provided file");
     }
 
     input_count = read_header_and_get_data_count(fd1, 1);
@@ -2528,12 +2537,18 @@ void read_exact(int fd, void *buff, size_t count){
     if (bytes_read == -1 ){
         errx(1, "cannot read file");
     }
+    if(bytes_read != count) {
+        errx(1, "unexpected end of file");
+    }
 }
 
 void write_exact(int fd,const void *buff, size_t count){
     ssize_t bytes_written = write(fd, buff, count);
     if (bytes_read == -1 ){
         errx(1, "cannot write file");
+    }
+    if (bytes_written != count) {
+        errx(1, "incomplete write");
     }
 }
 
@@ -2544,17 +2559,17 @@ int main(int argc, char *argv[]) {
 
     fd1 = open(argv[1], O_RDONLY)
     if (fd1 == -1){
-       errx(1, "cannot  open provided file") 
+       errx(1, "cannot  open provided file");
     }
 
     fd2 = open(argv[2], O_RDONLY)
     if (fd2 == -1){
-       errx(1, "cannot  open provided file") 
+       errx(1, "cannot  open provided file");
     }
 
     fd3 = open(argv[3], O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
     if (fd3 == -1){
-       errx(1, "cannot  open provided file") 
+       errx(1, "cannot  open provided file");
     }
 
     uint16_t magic;
@@ -2631,6 +2646,470 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+### 2017-IN-01
+Напишете програма на С, която приема четири параметъра – имена на двоични файлове.
+
+Примерно извикване:
 
 ```
+$ ./main f1.dat f1.idx f2.dat f2.idx
+```
+
+Първите два (f1.dat и f1.idx) и вторите два (f2.dat и f2.idx) файла са _входен_ и _изходен комп-лект_ със следния смисъл:
+- **DAT-файловете (f1.dat и f2.dat)** представляват двоични файлове, състоящи се от байтове (uint8_t);
+- **IDX-файловете** представляват двоични файлове, състоящи се от наредени тройки от следните елементи (и техните типове), които дефинират поредици от байтове (низове) от съответния DAT файл:
+  - **отместване** uint16_t – показва позицията на първия байт от даден низ спрямо началото на файла;
+  - **дължина** uint8_t – показва дължината на низа;
+  - **запазен** uint8_t – не се използва.
+
+
+Първата двойка файлове (f1.dat и f1.idx) съществува, а втората трябва да бъде създадена от програмата по следния начин:
+
+- трябва да се копират само низовете (поредици от байтове) от входния комплект, които започват с главна латинска буква (A - 0x41, Z - 0x5A).
+- ако файловете са неконсистентни по някакъв начин, програмата да прекратява изпълнението си по подходящ начин.
+
+
+*Забележка:* За удобство приемаме, че DAT файлът съдържа текстови данни на латински с ASCII кодова таблица (един байт за буква).
+
+*Примерен вход и изход:*
+
+```text
+$ xxd f1.dat
+00000000: 4c6f 7265 6d20 6970 7375 6d20 646f 6c6f Lorem ipsum dolo
+00000010: 7220 7369 7420 616d 6574 2c20 636f 6e73 r sit amet, cons
+00000020: 6563 7465 7475 7220 6164 6970 6973 6369 ectetur adipisci
+00000030: 6e67 2065 6c69 742c 2073 6564 2064 6f20 ng elit, sed do
+00000040: 6569 7573 6d6f 6420 7465 6d70 6f72 2069 eiusmod tempor i
+00000050: 6e63 6964 6964 756e 7420 7574 206c 6162 ncididunt ut lab
+00000060: 6f72 6520 6574 2064 6f6c 6f72 6520 6d61 ore et dolore ma
+00000070: 676e 6120 616c 6971 7561 2e20 5574 2065 gna aliqua. Ut e
+00000080: 6e69 6d20 6164 206d 696e 696d 2076 656e nim ad minim ven
+00000090: 6961 6d2c 2071 7569 7320 6e6f 7374 7275 iam, quis nostru
+000000a0: 6420 6578 6572 6369 7461 7469 6f6e 2075 d exercitation u
+000000b0: 6c6c 616d 636f 206c 6162 6f72 6973 206e llamco laboris n
+000000c0: 6973 6920 7574 2061 6c69 7175 6970 2065 isi ut aliquip e
+000000d0: 7820 6561 2063 6f6d 6d6f 646f 2063 6f6e x ea commodo con
+000000e0: 7365 7175 6174 2e20 4475 6973 2061 7574 sequat. Duis aut
+000000f0: 6520 6972 7572 6520 646f 6c6f 7220 696e e irure dolor in
+00000100: 2072 6570 7265 6865 6e64 6572 6974 2069 reprehenderit i
+00000110: 6e20 766f 6c75 7074 6174 6520 7665 6c69 n voluptate veli
+00000120: 7420 6573 7365 2063 696c 6c75 6d20 646f t esse cillum do
+00000130: 6c6f 7265 2065 7520 6675 6769 6174 206e lore eu fugiat n
+00000140: 756c 6c61 2070 6172 6961 7475 722e 2045 ulla pariatur. E
+00000150: 7863 6570 7465 7572 2073 696e 7420 6f63 xcepteur sint oc
+00000160: 6361 6563 6174 2063 7570 6964 6174 6174 caecat cupidatat
+00000170: 206e 6f6e 2070 726f 6964 656e 742c 2073 non proident, s
+00000180: 756e 7420 696e 2063 756c 7061 2071 7569 unt in culpa qui
+00000190: 206f 6666 6963 6961 2064 6573 6572 756e officia deserun
+000001a0: 7420 6d6f 6c6c 6974 2061 6e69 6d20 6964 t mollit anim id
+000001b0: 2065 7374 206c 6162 6f72 756d 2e0a est laborum..
+$ xxd f1.idx
+00000000: 0000 0500 4f01 0200 4e01 0300 ....O...N...
+$ xxd f2.dat
+00000000: 4c6f 7265 6d45 78 LoremEx
+$ xxd f2.idx
+00000000: 0000 0500 0500 0200 ........
+
+```
+ 
+ ```c
+ #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+int get_file_size(int fd);
+ssize_t read_exact(int fd, void *buff, size_t count);
+void write_exact(int fd, void *buff, size_t count);
+
+int get_file_size(int fd) {
+    struct stat st;
+    if(fstat(fd,&st) == -1 ){
+        errx(1, "cannot fstat file");
+    }
+    return st.st_size;
+}
+
+
+ssize_t read_exact(int fd, void *buff, size_t count){
+    ssize_t bytes_read = read(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot read file");
+    }
+    return bytes_read;
+}
+
+void write_exact(int fd,const void *buff, size_t count){
+    ssize_t bytes_written = write(fd, buff, count);
+    if (bytes_read == -1 ){
+        errx(1, "cannot write file");
+    }
+    if (bytes_written != count) {
+        errx(1, "incomplete write");
+    }
+}
+
+int main(int argc, char *argv[]) {
+	if (argc != 5 ) {
+        errx(1, "wrong usage");
+	}
+
+    f1_dat = open(argv[1], O_RDONLY)
+    if (f1_dat == -1){
+       errx(1, "cannot  open provided file");
+    }
+
+    f1_inx = open(argv[2], O_RDONLY)
+    if (f1_inx == -1){
+       errx(1, "cannot  open provided file"); 
+    }
+
+    f2_dat = open(argv[3], O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if (f2_dat == -1){
+       errx(1, "cannot  open provided file");
+    }
+
+    f2_inx = open(argv[3], O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+    if (f2_inx == -1){
+       errx(1, "cannot  open provided file");
+    }
+
+    f1_dat_size = get_file_size(f1_dat);
+    if (f1_dat_size % (sizeof(uint16_t)+ sizeof(uint8_t) + sizeof(uint8_t)) != 0){
+        errx(3, "f1_dat format is incorrect");
+    }
+
+    uint16_t f2_offset = 0;
+
+    while (true) {
+        uint16_t offset;
+        if (read_exact(f1_inx, &offset, sizeof(offset)) != sizeof(offset)) break; // we have reached the end of the file
+        uint8_t lenght;
+        if (read_exact(f1_inx, &lenght, sizeof(lenght)) != sizeof(lenght)) break;
+        uint8_t saved;
+        if (read_exact(f1_inx, &saved, sizeof(saved)) != sizeof(saved)) break;
+        
+        char *buffer = malloc(lenght);
+        lseek(f1_dat, offset, SEEK_SET);
+        read_exact(f1_dat, buffer, lenght); // here we do not need the return value
+
+        if(buffer[0] >= 'A' && buffer[0] <= 'Z') {
+            write_exact(f2_dat, buffer, lenght);
+
+            write_exact(f2_inx, &f2_offset, sizeof(f2_offset));
+            write_exact(f2_inx, &length, sizeof(lenght));
+            write_exact(f2_inx, &saved, sizeof(saved));
+
+            f2_offset += lenght;
+        }
+        free(buffer);
+    }
+
+    close(f1_dat);
+    close(f1_inx);
+    close(f2_dat);
+    close(f2_inx);
+
+    return 0;
+}
+
+ ```
+
+### Зад. 105 2022-IN-01
+
+Ваши колеги - асистенти по ОС имат нужда от демострационна програма на C, която
+да служи като пример за конкурентност и синхронизация на процеси. Напишете такава програма,
+приемаща два задължителни позиционни параметъра – едноцифрени числа. Примерно извикване:
+`./main N D`
+
+
+Общ алгоритъм на програмата:
+- началният (родителски) процес създава процес-наследник
+- 𝑁 на брой пъти се изпълнява:
+* родителският процес извежда на stdout низа “DING ”
+* процесът-наследник извежда на stdout низа “DONG ”
+* родителският процес изчаква 𝐷 секунди
+
+
+Гарантирайте, че:
+- процесът-наследник винаги извежда “DONG ” след като родителския процес е извел “DING ”
+- родителският процес винаги започва изчакването след като процеса-наследник е извел “DONG ”
+
+
+Забележка: За изчакването погледнете sleep(3).
+
+```c
+#include <fcntl.h>
+#include <unistd.h>
+#include <err.h>
+#include <stdint.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+
+#define DONG = "DONG\n"
+#define DING = "DING\n"
+
+int main(int argc, char* argv[]) {
+	if(argc != 3) {
+		errx(1, "not enough args");
+	}
+
+	int N = atoi(argv[1]);
+	if(N < 0) {
+		errx(1, "N must be non-negative");
+	}
+	int D = atoi(argv[2]);
+	if(D < 0) {
+		errx(1, "D must be non-negative");
+	}
+
+	int parent_to_child[2];
+	if(pipe(parent_to_child) == -1) { err(1, "pipe"); }
+
+	int child_to_parent[2];
+	if(pipe(child_to_parent) == -1) { err(1, "pipe"); }
+
+	pid_t pid = fork();
+	if(pid == -1) { err(1, "fork"); }
+
+	if(pid == 0) {
+		close(parent_to_child[1]);  // Затваряме write края на pipe от родител към дете
+		close(child_to_parent[0]); // Затваряме read края на pipe от дете към родител
+		
+		for (int i = 0; i < N; i++) {
+            char buf;
+            read(pipe_parent_to_child[0], &buf, 1); // Чакаме сигнал от родителя
+            if(write(1, DONG, strlen(DONG)) == -1) { err(2, "write (dong)"); }
+            write(pipe_child_to_parent[1], &buf, 1); // Изпращаме сигнал обратно към родителя
+        }
+
+		close(parent_to_child[0]);
+		close(child_to_parent[1]);
+
+		exit(0);
+	}
+	close(parent_to_child[0]);
+	close(child_to_parent[1]);
+
+    for (int i = 0; i < N; i++) {
+        if(write(1, DING, strlen(DING)) == -1) { err(2, "write (ding)"); }
+        char buf = 'x';
+        write(pipe_parent_to_child[1], &buf, 1); // Изпращаме сигнал към детето
+        read(pipe_child_to_parent[0], &buf, 1);  // Чакаме сигнал от детето
+        sleep(D); // Изчакваме D секунди
+     }
+	
+	close(parent_to_child[1]);
+	close(child_to_parent[0]);
+
+	int status;
+	if(wait(&status) == -1) { err(1, "wait"); }
+	if(!WIFEXITED(status)) {
+		errx(1, "child was killed");
+	}
+
+	return 0;
+}
+```
+
+```text
+Родителски процес (Parent)                  Детски процес (Child)
+-----------------------                  -----------------------
+|                     |                  |                     |
+|  pipe_parent_to_child[1]  ----------->  pipe_parent_to_child[0]  |
+|  (запис)            |                  |  (четене)           |
+|                     |                  |                     |
+|  pipe_child_to_parent[0]  <-----------  pipe_child_to_parent[1]  |
+|  (четене)           |                  |  (запис)            |
+|                     |                  |                     |
+-----------------------                  -----------------------
+
+```
+
+### Зад. 106 2023-IN-01
+
+Ваши колеги – асистенти по ОС – имат нужда от демострационна програма на C, която да служи като
+пример за конкурентност и синхронизация на процеси.
+
+Дефиниран е нареден списък с три думи 𝐿 = ("𝑡𝑖𝑐 " , "𝑡𝑎𝑐 " , "𝑡𝑜𝑒\𝑛"), като всяка дума е с дължина
+четири знака. Напишете програма, приемаща две числа като аргументи (./main NC WC ), като 𝑁𝐶 е
+ограничено в интервала [1, 7], а 𝑊𝐶 – в интервала [1, 35]. Програмата трябва задължително да работи
+по следния общ алгоритъм:
+- началният (родителски) процес създава 𝑁𝐶 на брой процеси-наследници;
+- групата процеси извеждат на stdout общо 𝑊𝐶 на брой думи от горния списък при следните
+правила:
+* ако броят на думите за извеждане 𝑊𝐶 е по-голям от общия брой думи в 𝐿, след изчерпване
+на думите в 𝐿 програмата започва списъка отначало колкото пъти е нужно;
+* всеки процес извежда само една дума;
+* първата дума се извежда от родителския процес;
+* ако броят на думите за извеждане 𝑊𝐶 е по-голям от общия брой процеси, след изчерпване
+на процесите програмата започва да ги ползва от начало. Например при родителски процес
+𝑃 и два процеса-наследници 𝐶1 и 𝐶2 редът на използване на процесите ще бъде 𝑃, 𝐶1, 𝐶2,𝑃, 𝐶1, 𝐶2, 𝑃, 𝐶1, ...
+- изведените думи гарантирано трябва да са по реда, дефиниран в 𝐿;
+- всеки процес гарантирано започва да извежда на stdout поредната дума, след като предходния процес е приключил с извеждането на предишната.
+
+Забележка: За конвертиране на аргументите погледнете strtol(3).
+
+```c
+#include <fcntl.h>
+#include <unistd.h>
+#include <err.h>
+#include <stdint.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+
+const char *words[] = {
+    "tic ",
+    "tac ",
+    "toe\n"
+};
+
+void handleMessages(int, int, int);
+
+void handleMessages(int totalWords, int fromFD, int toFD) {
+	int count = 0;
+	ssize_t read_size;
+	bool written_final_signal = false;
+	while((read_size = read(fromFD, &count, sizeof(count))) > 0) {
+		if(count >= totalWords) {
+			if(!written_final_signal) {
+				if(write(toFD, &count, sizeof(count)) == -1) { err(2, "write (finish)"); }
+			}
+			return;
+		}
+
+		if(write(1, WORDS[count % 3], strlen(WORDS[count % 3])) == -1) { err(2, "write (%d)", count); }
+
+		int next = count + 1;
+		if(write(toFD, &next, sizeof(next)) == -1) { err(2, "write (next)"); }
+
+		// If this was the last message, make a note NOT to write it a second
+		// time when the loop reaches this process again. Otherwise, the
+		// process will die by SIGPIPE.
+		if(next >= totalWords) {
+			written_final_signal = true;
+		}
+	}
+
+	if(read_size == 0) {
+		errx(2, "unexpected EOF");
+	}
+
+	if(read_size < 0) {
+		err(2, "read");
+	}
+}
+
+
+int main(int argc, char* argv[]) {
+	if(argc != 3) {
+		errx(1, "not enough args");
+	}
+
+	int NC = atoi(argv[1]);
+	if(NC < 1 || NC > 7) {
+		errx(1, "NC must be in [1,7]");
+	}
+	int WC = atoi(argv[2]);
+	if(WC < 1 || NC > 35 ) {
+		errx(1, "NC must be in [1, 35]");
+	}
+
+    int pipes = children + 1;
+	int pipeFDs[8][2];
+	for(int p = 0; p < pipes; p++) {
+		if(pipe(pipeFDs[p]) == -1) { err(1, "pipe %d", p); }
+	}
+
+    for (int i = 1; i <= NC; i++) {
+        pid_t pid = fork();
+        if (pid == -1 ){
+            errx(2, "cannot fork");
+        } 
+
+        if (pid == 0 ){
+           	int fromFD = pipeFDs[i-1][0];
+			int toFD = pipeFDs[i][1];
+
+			for(int p = 0; p < pipes; p++) {
+				if(pipeFDs[p][0] != fromFD){
+					close(pipeFDs[p][0]);
+				}
+				if(pipeFDs[p][1] != toFD) {
+					close(pipeFDs[p][1]);
+				}
+			}
+
+			handleMessages(totalWords, fromFD, toFD);
+
+			close(fromFD);
+			close(toFD);
+            exit(0);
+        }
+    }
+
+    int fromFD = pipeFDs[children][0];
+	int toFD = pipeFDs[0][1];
+
+	for(int p = 0; p < pipes; p++) {
+		if(pipeFDs[p][0] != fromFD){
+			close(pipeFDs[p][0]);
+		}
+		if(pipeFDs[p][1] != toFD) {
+			close(pipeFDs[p][1]);
+		}
+	}
+
+	if(write(1, WORDS[0], strlen(WORDS[0])) == -1) { err(1, "write (0)"); }
+	int next = 1;
+	if(write(toFD, &next, sizeof(next)) == -1) { err(2, "write (next)"); }
+	handleMessages(totalWords, fromFD, toFD);
+
+	close(fromFD);
+	close(toFD);
+	for(int i = 1; i <= children; i++) {
+		pid_t pid;
+		int status;
+		if((pid = wait(&status)) == -1) { err(1, "wait"); }
+		if (WIFEXITED(status)) {
+			if(WEXITSTATUS(status) != 0) {
+				warnx("child %d exited with code %d", pid, WEXITSTATUS(status));
+			}
+		} else {
+			warnx("child %d was killed (%d)", pid, WIFSIGNALED(status) ? WTERMSIG(status) : 0);
+		}
+	}
+	
+	return 0;
+}
+``` 
+
+```text
+Родител (Parent)                   Дете 1 (Child 1)                   Дете 2 (Child 2)                   ...                   Дете NC (Child NC)
+-------------------               -------------------               -------------------               ...               -------------------
+|                  |               |                  |               |                  |               ...               |                  |
+| pipeFDs[0][1]    | ------------> | pipeFDs[0][0]    |               |                  |               ...               |                  |
+| (запис)          |               | (четене)         |               |                  |               ...               |                  |
+|                  |               |                  |               |                  |               ...               |                  |
+| pipeFDs[1][0]    |               | pipeFDs[1][1]    | ------------> | pipeFDs[1][0]    |               ...               |                  |
+| (четене)         |               | (запис)          |               | (четене)         |               ...               |                  |
+|                  |               |                  |               |                  |               ...               |                  |
+|                  |               |                  |               | pipeFDs[2][1]    | ------------> ... ------------> | pipeFDs[NC][0]   |
+|                  |               |                  |               | (запис)          |               ...               | (четене)         |
+|                  |               |                  |               |                  |               ...               |                  |
+| pipeFDs[NC][0]   |               |                  |               |                  |               ...               | pipeFDs[NC][1]   |
+| (четене)         |               |                  |               |                  |               ...               | (запис)          |
+|                  |               |                  |               |                  |               ...               |                  |
+-------------------               -------------------               -------------------               ...               -------------------
+
+```
+
 
