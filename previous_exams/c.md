@@ -1428,6 +1428,7 @@ int main(int argc, char *argv[]) {
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <err.h>
 
 
 void mdsum_file(char* filename) {
@@ -1488,7 +1489,7 @@ int main(int argc, char *argv[]) {
     }
 
     int find[2];
-    if(pipe(find) == 0 ){
+    if(pipe(find) != 0 ){
         errx(1,"cannot pipe");
     }
 
@@ -1537,7 +1538,7 @@ int main(int argc, char *argv[]) {
                 mdsum_file(buffer);
                 exit(0);
             }
-            worker_count++l
+            worker_count++;
         }
     }
     // close the pipe for parent
